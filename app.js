@@ -52,6 +52,9 @@ let localStream = null;
 
 // -- AUTH & STATUS --
 onAuthStateChanged(auth, async (user) => {
+    // Hide splash after auth check
+    document.getElementById('splashScreen').style.display = 'none';
+
     if (user) {
         currentUser = user;
         const userRef = doc(db, "users", user.uid);
@@ -61,8 +64,10 @@ onAuthStateChanged(auth, async (user) => {
             currentUserDoc = userSnap.data();
             loginScreen.style.display = 'none';
             appScreen.style.display = 'flex';
+            
             updateStatus(true);
             setInterval(() => updateStatus(true), 30000);
+            
             loadUsersAndChats();
             listenForIncomingCalls();
         } else {
@@ -104,7 +109,11 @@ document.getElementById('closeBannerBtn').onclick = () => installBanner.style.di
 // -- CHAT LIST --
 function loadUsersAndChats() {
     onSnapshot(collection(db, "users"), (snapshot) => {
-        const users = snapshot.docs.map(d => d.data()).filter(u => u.uid !== currentUser.uid);
+        // Filter out incomplete/undefined users
+        const users = snapshot.docs
+            .map(d => d.data())
+            .filter(u => u.uid !== currentUser.uid && u.name && u.avatar);
+            
         const now = Date.now();
         users.forEach(u => {
             // Trust the manual isOnline flag first
