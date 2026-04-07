@@ -495,8 +495,28 @@ document.getElementById('editProfileBtn').onclick = () => {
     document.getElementById('editNameInput').value = currentUserDoc.name || '';
     document.getElementById('editBioInput').value = currentUserDoc.bio || ''; 
     const avatarSrc = currentUserDoc.avatar || getDefaultAvatar(currentUserDoc.name);
-    document.getElementById('editProfilePreview').src = avatarSrc;
-    updateAvatarPlaceholders(avatarSrc, 'edit');
+    const editPreview = document.getElementById('editProfilePreview');
+    const editPlaceholder = document.getElementById('editAvatarPlaceholder');
+    
+    if (editPreview && editPlaceholder) {
+        editPreview.src = avatarSrc;
+        
+        // Check if it's a real uploaded image or default avatar
+        const isRealImage = avatarSrc && !avatarSrc.includes('ui-avatars.com');
+        
+        if (isRealImage) {
+            editPreview.style.display = 'block';
+            editPreview.style.background = 'var(--bg-glass)';
+            editPlaceholder.style.display = 'none';
+        } else {
+            editPreview.style.display = 'none';
+            editPlaceholder.style.display = 'flex';
+        }
+        
+        console.log('Edit profile avatar initialized:', { isRealImage, avatarSrc });
+    } else {
+        console.error('Edit avatar elements not found');
+    }
 };
 document.getElementById('saveProfileBtn').onclick = async () => { 
     const username = "@" + document.getElementById('usernameInput').value.trim();
@@ -560,8 +580,19 @@ document.getElementById('profileImageInput').onchange = (e) => {
         r.onload = (ev) => {
             const img = new Image();
             img.onload = () => {
-                document.getElementById('profilePreview').src = ev.target.result;
-                updateAvatarPlaceholders(ev.target.result, 'setup');
+                const preview = document.getElementById('profilePreview');
+                const placeholder = document.getElementById('avatarPlaceholder');
+                
+                if (preview && placeholder) {
+                    preview.src = ev.target.result;
+                    preview.style.display = 'block';
+                    preview.style.background = 'var(--bg-glass)';
+                    placeholder.style.display = 'none';
+                    console.log('Avatar preview updated successfully');
+                } else {
+                    console.error('Avatar elements not found');
+                    showNotification('Ошибка: элементы аватара не найдены', 'error');
+                }
             };
             img.onerror = () => {
                 showNotification('Ошибка при загрузке изображения', 'error');
@@ -637,8 +668,19 @@ document.getElementById('editProfileImageInput').onchange = (e) => {
         r.onload = (ev) => {
             const img = new Image();
             img.onload = () => {
-                document.getElementById('editProfilePreview').src = ev.target.result;
-                updateAvatarPlaceholders(ev.target.result, 'edit');
+                const preview = document.getElementById('editProfilePreview');
+                const placeholder = document.getElementById('editAvatarPlaceholder');
+                
+                if (preview && placeholder) {
+                    preview.src = ev.target.result;
+                    preview.style.display = 'block';
+                    preview.style.background = 'var(--bg-glass)';
+                    placeholder.style.display = 'none';
+                    console.log('Edit avatar preview updated successfully');
+                } else {
+                    console.error('Edit avatar elements not found');
+                    showNotification('Ошибка: элементы аватара не найдены', 'error');
+                }
             };
             img.onerror = () => {
                 showNotification('Ошибка при загрузке изображения', 'error');
@@ -687,16 +729,315 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
+// Translation system
+const translations = {
+    ru: {
+        select_chat: 'Выберите чат',
+        start_messaging: 'Начните общение в TezGram',
+        write_message: 'Написать сообщение...',
+        login_google: 'Войти через Google',
+        profile_setup: 'Настройка профиля',
+        profile_info: 'Заполните данные, чтобы другие могли вас найти',
+        username: '@username',
+        bio: 'О себе (био)',
+        name: 'Ваше имя',
+        save_and_login: 'Сохранить и войти',
+        edit_profile: 'Редактировать профиль',
+        save_changes: 'Сохранить изменения',
+        online: 'онлайн',
+        offline: 'офлайн',
+        calling: 'Звонок...',
+        video_calling: 'Видеозвонок...',
+        incoming_call: 'Входящий',
+        outgoing_call: 'Исходящий',
+        audio_call: 'аудио',
+        video_call: 'видео',
+        call_from: 'вызов от',
+        answer_call: 'Принять вызов',
+        reject_call: 'Сбросить вызов',
+        end_call: 'Положить трубку',
+        mute: 'Выключить микрофон',
+        camera: 'Выключить камеру',
+        contacts_not_found: 'Контакты не найдены',
+        search_chats: 'Поиск чатов и людей...',
+        profile: 'Профиль',
+        logout: 'Выйти',
+        back_to_chats: 'Назад к чатам',
+        change_avatar: 'Нажмите, чтобы изменить аватар',
+        notifications: {
+            username_empty: 'Юзернейм не может быть пустым',
+            name_empty: 'Имя не может быть пустым',
+            username_taken: 'Этот юзернейм уже занят. Выберите другой.',
+            profile_created: 'Профиль успешно создан!',
+            profile_updated: 'Профиль успешно обновлён',
+            profile_error: 'Ошибка при сохранении профиля',
+            msg_too_long: 'Сообщение слишком длинное (максимум 1000 символов)',
+            msg_send_error: 'Ошибка при отправке сообщения',
+            img_send_error: 'Ошибка при отправке изображения',
+            img_format_error: 'Пожалуйста, выберите изображение',
+            img_size_error: 'Размер файла не должен превышать',
+            img_load_error: 'Ошибка при загрузке изображения',
+            call_access_denied: 'Доступ к камере/микрофону запрещен',
+            call_not_found: 'Камера или микрофон не найдены',
+            call_start_error: 'Ошибка при начале звонка',
+            call_answer_error: 'Ошибка при ответе на звонок',
+            avatar_elements_error: 'Ошибка: элементы аватара не найдены',
+            users_load_error: 'Ошибка при загрузке пользователей',
+            chats_init_error: 'Ошибка при инициализации чатов',
+            messages_load_error: 'Ошибка при загрузке сообщений',
+            chat_open_error: 'Ошибка при открытии чата',
+            auth_load_error: 'Ошибка при загрузке профиля'
+        }
+    },
+    en: {
+        select_chat: 'Choose a chat',
+        start_messaging: 'Start messaging in TezGram',
+        write_message: 'Write a message...',
+        login_google: 'Sign in with Google',
+        profile_setup: 'Profile Setup',
+        profile_info: 'Fill in your details so others can find you',
+        username: '@username',
+        bio: 'About you (bio)',
+        name: 'Your name',
+        save_and_login: 'Save and Login',
+        edit_profile: 'Edit Profile',
+        save_changes: 'Save Changes',
+        online: 'online',
+        offline: 'offline',
+        calling: 'Calling...',
+        video_calling: 'Video calling...',
+        incoming_call: 'Incoming',
+        outgoing_call: 'Outgoing',
+        audio_call: 'audio',
+        video_call: 'video',
+        call_from: 'call from',
+        answer_call: 'Answer Call',
+        reject_call: 'Reject Call',
+        end_call: 'End Call',
+        mute: 'Mute Microphone',
+        camera: 'Turn Off Camera',
+        contacts_not_found: 'No contacts found',
+        search_chats: 'Search chats and people...',
+        profile: 'Profile',
+        logout: 'Logout',
+        back_to_chats: 'Back to Chats',
+        change_avatar: 'Click to change avatar',
+        notifications: {
+            username_empty: 'Username cannot be empty',
+            name_empty: 'Name cannot be empty',
+            username_taken: 'This username is already taken. Choose another.',
+            profile_created: 'Profile created successfully!',
+            profile_updated: 'Profile updated successfully!',
+            profile_error: 'Error saving profile',
+            msg_too_long: 'Message too long (max 1000 characters)',
+            msg_send_error: 'Error sending message',
+            img_send_error: 'Error sending image',
+            img_format_error: 'Please select an image',
+            img_size_error: 'File size must not exceed',
+            img_load_error: 'Error loading image',
+            call_access_denied: 'Camera/microphone access denied',
+            call_not_found: 'Camera or microphone not found',
+            call_start_error: 'Error starting call',
+            call_answer_error: 'Error answering call',
+            avatar_elements_error: 'Error: avatar elements not found',
+            users_load_error: 'Error loading users',
+            chats_init_error: 'Error initializing chats',
+            messages_load_error: 'Error loading messages',
+            chat_open_error: 'Error opening chat',
+            auth_load_error: 'Error loading profile'
+        }
+    },
+    uz: {
+        select_chat: 'Chatni tanlang',
+        start_messaging: 'TezGram da xabarlashni boshlang',
+        write_message: 'Xabar yozing...',
+        login_google: 'Google bilan kirish',
+        profile_setup: 'Profilni sozlash',
+        profile_info: 'Boshqalar sizni topishi uchun ma\'lumotlaringizni to\'ldiring',
+        username: '@username',
+        bio: 'O\'zingiz haqingizda (bio)',
+        name: 'Ismingiz',
+        save_and_login: 'Saqlash va kirish',
+        edit_profile: 'Profilni tahrirlash',
+        save_changes: 'O\'zgarishlarni saqlash',
+        online: 'onlayn',
+        offline: 'oflayn',
+        calling: 'Qo\'ng\'iroq qilinmoqda...',
+        video_calling: 'Video qo\'ng\'iroq qilinmoqda...',
+        incoming_call: 'Kiruvchi',
+        outgoing_call: 'Chiquvchi',
+        audio_call: 'audio',
+        video_call: 'video',
+        call_from: 'dan qo\'ng\'iroq',
+        answer_call: 'Qo\'ng\'iroqni javob berish',
+        reject_call: 'Qo\'ng\'iroqni rad etish',
+        end_call: 'Qo\'ng\'iroqni tugatish',
+        mute: 'Mikrofonni o\'chirish',
+        camera: 'Kamerani o\'chirish',
+        contacts_not_found: 'Kontaktlar topilmadi',
+        search_chats: 'Chatlar va odamlarni qidirish...',
+        profile: 'Profil',
+        logout: 'Chiqish',
+        back_to_chats: 'Chatlarga qaytish',
+        change_avatar: 'Avatarni o\'zgartirish uchun bosing',
+        notifications: {
+            username_empty: 'Username bo\'sh bo\'lishi mumkin emas',
+            name_empty: 'Ism bo\'sh bo\'lishi mumkin emas',
+            username_taken: 'Bu username band. Boshqasini tanlang.',
+            profile_created: 'Profil muvaffaqiyatli yaratildi!',
+            profile_updated: 'Profil muvaffaqiyatli yangilandi!',
+            profile_error: 'Profilni saqlashda xatolik',
+            msg_too_long: 'Xabar juda uzun (maksimum 1000 belgi)',
+            msg_send_error: 'Xabar yuborishda xatolik',
+            img_send_error: 'Rasm yuborishda xatolik',
+            img_format_error: 'Iltimos, rasm tanlang',
+            img_size_error: 'Fayl hajmi',
+            img_load_error: 'Rasm yuklashda xatolik',
+            call_access_denied: 'Kamera/mikrofon ruxsati berilmadi',
+            call_not_found: 'Kamera yoki mikrofon topilmadi',
+            call_start_error: 'Qo\'ng\'iroqni boshlashda xatolik',
+            call_answer_error: 'Qo\'ng\'iroqqa javob berishda xatolik',
+            avatar_elements_error: 'Xatolik: avatar elementlari topilmadi',
+            users_load_error: 'Foydalanuvchilarni yuklashda xatolik',
+            chats_init_error: 'Chatlarni ishga tushirishda xatolik',
+            messages_load_error: 'Xabalarni yuklashda xatolik',
+            chat_open_error: 'Chatni ochishda xatolik',
+            auth_load_error: 'Profilni yuklashda xatolik'
+        }
+    }
+};
+
+let currentLanguage = localStorage.getItem('language') || 'ru';
+
+function t(key, category = null) {
+    if (category && translations[currentLanguage][category]) {
+        return translations[currentLanguage][category][key] || key;
+    }
+    return translations[currentLanguage][key] || key;
+}
+
+function updateLanguage(lang) {
+    currentLanguage = lang;
+    localStorage.setItem('language', lang);
+    document.getElementById('currentLang').textContent = lang.toUpperCase();
+    updateAllTexts();
+}
+
+function updateAllTexts() {
+    // Update all elements with data-i18n attribute
+    document.querySelectorAll('[data-i18n]').forEach(element => {
+        const key = element.getAttribute('data-i18n');
+        element.textContent = t(key);
+    });
+    
+    // Update placeholders
+    const messageInput = document.getElementById('messageInput');
+    if (messageInput) messageInput.placeholder = t('write_message');
+    
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.placeholder = t('search_chats');
+    
+    // Update other elements
+    const usernameInputs = document.querySelectorAll('#usernameInput, #editUsernameInput');
+    usernameInputs.forEach(input => input.placeholder = t('username'));
+    
+    const nameInputs = document.querySelectorAll('#nameInput, #editNameInput');
+    nameInputs.forEach(input => input.placeholder = t('name'));
+    
+    const bioInputs = document.querySelectorAll('#bioInput, #editBioInput');
+    bioInputs.forEach(input => input.placeholder = t('bio'));
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 100000;
+        animation: slideIn 0.3s ease-out;
+        max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    `;
+    
+    const colors = {
+        success: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+        error: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+        info: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+    };
+    
+    notification.style.background = colors[type] || colors.info;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
+
 function updateAvatarPlaceholders(avatarSrc, type) {
     const prefix = type === 'edit' ? 'edit' : '';
     const placeholder = document.getElementById(`${prefix}avatarPlaceholder`);
     const preview = document.getElementById(`${prefix}profilePreview`);
     
-    if (avatarSrc && avatarSrc !== getDefaultAvatar('')) {
+    console.log(`Updating avatar placeholders for ${type}:`, { avatarSrc, placeholder: !!placeholder, preview: !!preview });
+    
+    if (!placeholder || !preview) {
+        console.error(`Avatar elements not found for type: ${type}`);
+        return;
+    }
+    
+    // Check if it's a real image (not default avatar)
+    const isRealImage = avatarSrc && !avatarSrc.includes('ui-avatars.com');
+    
+    if (isRealImage) {
         placeholder.style.display = 'none';
         preview.style.display = 'block';
+        preview.style.background = 'var(--bg-glass)';
     } else {
         placeholder.style.display = 'flex';
         preview.style.display = 'none';
     }
 }
+
+// Initialize language switcher
+document.addEventListener('DOMContentLoaded', () => {
+    const langBtn = document.getElementById('langBtn');
+    const langDropdown = document.getElementById('langDropdown');
+    const currentLangSpan = document.getElementById('currentLang');
+    
+    if (langBtn && langDropdown && currentLangSpan) {
+        currentLangSpan.textContent = currentLanguage.toUpperCase();
+        
+        langBtn.addEventListener('click', () => {
+            langDropdown.classList.toggle('show');
+        });
+        
+        document.querySelectorAll('.lang-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const lang = option.getAttribute('data-lang');
+                updateLanguage(lang);
+                langDropdown.classList.remove('show');
+            });
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!langBtn.contains(e.target) && !langDropdown.contains(e.target)) {
+                langDropdown.classList.remove('show');
+            }
+        });
+        
+        updateAllTexts();
+    }
+});
