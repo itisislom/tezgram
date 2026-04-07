@@ -42,7 +42,12 @@ onAuthStateChanged(auth, async (user) => {
                 appScreen.style.display = 'flex'; 
                 hideSplash();
                 updateStatus(true); 
-                setInterval(() => updateStatus(true), 30000);
+                
+                // Clear any existing status interval
+                if (window.statusInterval) {
+                    clearInterval(window.statusInterval);
+                }
+                window.statusInterval = setInterval(() => updateStatus(true), 30000);
                 
                 try {
                     await deleteDoc(doc(db, "calls", user.uid));
@@ -71,6 +76,9 @@ onAuthStateChanged(auth, async (user) => {
         appScreen.style.display = 'none'; 
         profileSetupModal.style.display = 'none';
         if (messagesUnsubscribe) messagesUnsubscribe(); 
+        if (window.statusInterval) {
+            clearInterval(window.statusInterval);
+        }
         hideSplash(); 
     }
 });
@@ -99,8 +107,13 @@ window.addEventListener('unload', () => {
 });
 
 function loadUsersAndChats() {
+    // Clear existing listener to prevent duplicates
+    if (window.usersUnsubscribe) {
+        window.usersUnsubscribe();
+    }
+    
     try {
-        onSnapshot(collection(db, "users"), (snapshot) => {
+        window.usersUnsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
             try {
                 allUsers = snapshot.docs.map(d => d.data()).filter(u => u.uid !== currentUser?.uid && u.name);
                 const now = Date.now();
@@ -351,7 +364,10 @@ const startCall = async (type) => {
     }
 };
 function listenForIncomingCalls() {
-    if (callListenerUnsubscribe) callListenerUnsubscribe();
+    // Clear existing listener to prevent duplicates
+    if (callListenerUnsubscribe) {
+        callListenerUnsubscribe();
+    }
     
     let isInitial = true;
     
