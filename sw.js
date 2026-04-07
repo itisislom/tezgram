@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tezgram-cache-v2'; // Updated version
+const CACHE_NAME = 'tezgram-cache-v3'; // Force update to v3
 const urlsToCache = [
   '/',
   '/index.html',

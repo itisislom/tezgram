@@ -18,29 +18,37 @@ const splashScreen = document.getElementById('splashScreen'), loginScreen = docu
 const chatList = document.getElementById('chatList'), selfProfileView = document.getElementById('selfProfileView'), chatWindow = document.getElementById('chatWindow');
 const messagesArea = document.getElementById('messagesArea'), messageInput = document.getElementById('messageInput'), sendBtn = document.getElementById('sendBtn'), backBtn = document.getElementById('backBtn'), emojiBtn = document.querySelector('.emoji-btn'), emojiPicker = document.getElementById('emojiPicker');
 const callModal = document.getElementById('callModal'), localVideo = document.getElementById('localVideo'), remoteVideo = document.getElementById('remoteVideo'), callStatusText = document.getElementById('callStatusText'), ringtoneIncoming = document.getElementById('ringtoneIncoming'), ringtoneOutgoing = document.getElementById('ringtoneOutgoing'), muteBtn = document.getElementById('muteBtn'), cameraToggleBtn = document.getElementById('cameraToggleBtn');
+const logoutBtn = document.getElementById('logoutBtn'), callBtn = document.getElementById('callBtn'), videoBtn = document.getElementById('videoBtn'), googleLoginBtn = document.getElementById('googleLoginBtn'), profileViewBtn = document.getElementById('profileViewBtn');
+const backToChatsBtn = document.getElementById('backToChatsBtn'), saveProfileBtn = document.getElementById('saveProfileBtn'), profilePreview = document.getElementById('profilePreview'), profileImageInput = document.getElementById('profileImageInput');
+const usernameInput = document.getElementById('usernameInput'), bioInput = document.getElementById('bioInput');
 
 // STATE
-let currentUser = null, currentUserDoc = null, currentChatUserId = null, currentChatId = null, messagesUnsubscribe = null, activeCallDocId = null, pc = null, localStream = null, callUnsubscribe = null;
+const APP_START_TIME = Date.now();
+let currentUser = null, currentUserDoc = null, currentChatUserId = null, currentChatId = null, messagesUnsubscribe = null, activeCallDocId = null, pc = null, localStream = null, callUnsubscribe = null, callListenerUnsubscribe = null;
 
 onAuthStateChanged(auth, async (user) => {
-    setTimeout(() => { if (splashScreen) splashScreen.style.display = 'none'; }, 800);
+    const hideSplash = () => { if (splashScreen) splashScreen.style.display = 'none'; };
     if (user) {
         currentUser = user; const uSnap = await getDoc(doc(db, "users", user.uid));
         if (uSnap.exists() && uSnap.data().username) {
-            currentUserDoc = uSnap.data(); loginScreen.style.display = 'none'; appScreen.style.display = 'flex';
+            currentUserDoc = uSnap.data(); loginScreen.style.display = 'none'; appScreen.style.display = 'flex'; hideSplash();
             updateStatus(true); setInterval(() => updateStatus(true), 30000);
             
             // Clean up any stale call records for this user on load
-            await deleteDoc(doc(db, "calls", user.uid));
-            
-            // Also clean up any calls where the user was the caller (if they reloaded mid-call)
-            const qCaller = query(collection(db, "calls"), where("callerId", "==", user.uid));
-            const callerSnaps = await getDocs(qCaller);
-            callerSnaps.forEach(d => deleteDoc(d.ref));
+            try {
+                await deleteDoc(doc(db, "calls", user.uid));
+                const qCaller = query(collection(db, "calls"), where("callerId", "==", user.uid));
+                const callerSnaps = await getDocs(qCaller);
+                callerSnaps.forEach(d => deleteDoc(d.ref));
+            } catch (e) {
+                console.error("Call cleanup failed", e);
+            }
 
-            loadUsersAndChats(); listenForIncomingCalls();
-        } else { loginScreen.style.display = 'none'; profileSetupModal.style.display = 'flex'; }
-    } else { loginScreen.style.display = 'flex'; appScreen.style.display = 'none'; if (messagesUnsubscribe) messagesUnsubscribe(); }
+            loadUsersAndChats(); 
+            // Delay listener to allow initialization cleanup to propagate
+            setTimeout(() => { listenForIncomingCalls(); }, 2000);
+        } else { loginScreen.style.display = 'none'; profileSetupModal.style.display = 'flex'; hideSplash(); }
+    } else { loginScreen.style.display = 'flex'; appScreen.style.display = 'none'; if (messagesUnsubscribe) messagesUnsubscribe(); hideSplash(); }
 });
 
 async function updateStatus(s) { if(currentUser) await setDoc(doc(db,"users",currentUser.uid),{isOnline:s,lastSeen:serverTimestamp()},{merge:true}); }
@@ -148,22 +156,38 @@ const startCall = async (type) => {
     const originalUnsub = callUnsubscribe;
     callUnsubscribe = () => { originalUnsub(); candyUnsub(); };
 };
-let callListenerUnsubscribe = null;
 function listenForIncomingCalls() {
     if (callListenerUnsubscribe) callListenerUnsubscribe();
+    
+    let isInitial = true; // Use local flag to be sure
+    
     callListenerUnsubscribe = onSnapshot(doc(db, "calls", currentUser.uid), async (s) => {
-        const data = s.data();
-        if (s.exists() && data.offer && !pc) {
-            // ONLY accept calls that were sent recently (within last 30s) to avoid stale calls on reload
-            const now = Date.now();
-            const sentAt = data.sentAt?.toMillis ? data.sentAt.toMillis() : (data.sentAt || 0);
-            const isStale = !sentAt || (now - sentAt) > 40000; // 40 seconds buffer
+        if (!s.exists()) {
+            isInitial = false; // Capture that we saw an empty state
+            if (pc || callModal.style.display === 'flex') endCall();
+            return;
+        }
 
-            if (isStale) {
-                console.log("Ignoring stale or missing timestamp call from before session");
-                deleteDoc(doc(db, "calls", currentUser.uid));
-                return;
-            }
+        const data = s.data();
+        
+        // If it's the first snapshot we see, and it contains an offer, it's stale
+        if (isInitial) {
+            isInitial = false;
+            console.log("Listen: Ignoring initial stale record", data);
+            deleteDoc(s.ref);
+            return;
+        }
+
+        // Even after initial, perform a safety check on timestamp
+        const sentAt = data.sentAt?.toMillis ? data.sentAt.toMillis() : (data.sentAt || 0);
+        const now = Date.now();
+        if (sentAt && sentAt < APP_START_TIME - 10000) {
+            console.log("Listen: Offer too old, deleting", sentAt);
+            deleteDoc(s.ref);
+            return;
+        }
+
+        if (data.offer && !pc) {
 
             activeCallDocId = currentUser.uid;
             ringtoneIncoming.play(); callModal.style.display = 'flex';

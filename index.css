@@ -98,6 +98,7 @@ body {
     font-weight: 700;
     background: var(--accent-gradient);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     display: flex;
     align-items: center;
@@ -311,6 +312,7 @@ body {
     margin-bottom: 20px;
     background: var(--accent-gradient);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     opacity: 0.5;
 }
@@ -654,6 +656,10 @@ body {
         transform: translateX(-100%);
     }
 
+    body.chat-active .chat-window {
+        transform: translateX(-100%);
+    }
+
     .send-btn {
         display: flex !important;
         width: 40px;
@@ -766,6 +772,7 @@ body {
     font-size: 48px;
     background: var(--accent-gradient);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 20px;
 }
