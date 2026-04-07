@@ -197,18 +197,53 @@
             <h2>Настройка профиля</h2>
             <p>Заполните данные, чтобы другие могли вас найти</p>
             <div class="avatar-upload" style="margin-bottom: 20px;">
-                <img id="profilePreview" src="https://via.placeholder.com/100"
-                    style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 2px solid var(--accent-color);">
+                <div class="avatar-preview-container">
+                    <img id="profilePreview" src=""
+                        style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 2px solid var(--accent-color); background: var(--bg-glass);">
+                    <div class="avatar-placeholder" id="avatarPlaceholder" style="position: absolute; top: 0; left: 0; width: 100px; height: 100px; border-radius: 50%; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; color: white; font-size: 36px; cursor: pointer;">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                </div>
                 <input type="file" id="profileImageInput" style="display: none;" accept="image/*">
-                <p style="font-size: 12px; margin-top: 5px; color: var(--accent-color);">Нажмите, чтобы изменить аватар
-                </p>
+                <p style="font-size: 12px; margin-top: 5px; color: var(--accent-color);">Нажмите, чтобы изменить аватар</p>
             </div>
             <input type="text" id="usernameInput" class="input-box" placeholder="@username"
+                style="width: 100%; margin-bottom: 10px; border-radius: 12px;">
+            <input type="text" id="nameInput" class="input-box" placeholder="Ваше имя"
                 style="width: 100%; margin-bottom: 15px; border-radius: 12px;">
-            <input type="text" id="bioInput" class="input-box" placeholder="О себе (био)"
-                style="width: 100%; margin-bottom: 20px; border-radius: 12px;">
+            <textarea id="bioInput" class="input-box" placeholder="О себе (био)"
+                style="width: 100%; margin-bottom: 20px; border-radius: 12px; min-height: 80px; resize: vertical;"></textarea>
             <button id="saveProfileBtn" class="google-btn"
                 style="background: var(--accent-gradient); color: white;">Сохранить и войти</button>
+        </div>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div id="editProfileModal" class="login-screen" style="display: none; z-index: 99999;">
+        <div class="login-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">Редактировать профиль</h2>
+                <button id="editProfileCloseBtn" style="background: none; border: none; color: var(--text-primary); font-size: 24px; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="avatar-upload" style="margin-bottom: 20px;">
+                <div class="avatar-preview-container">
+                    <img id="editProfilePreview" src=""
+                        style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 2px solid var(--accent-color); background: var(--bg-glass);">
+                    <div class="avatar-placeholder" id="editAvatarPlaceholder" style="position: absolute; top: 0; left: 0; width: 100px; height: 100px; border-radius: 50%; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; color: white; font-size: 36px; cursor: pointer;">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                </div>
+                <input type="file" id="editProfileImageInput" style="display: none;" accept="image/*">
+                <p style="font-size: 12px; margin-top: 5px; color: var(--accent-color);">Нажмите, чтобы изменить аватар</p>
+            </div>
+            <input type="text" id="editUsernameInput" class="input-box" placeholder="@username"
+                style="width: 100%; margin-bottom: 10px; border-radius: 12px;">
+            <input type="text" id="editNameInput" class="input-box" placeholder="Имя"
+                style="width: 100%; margin-bottom: 15px; border-radius: 12px;">
+            <textarea id="editBioInput" class="input-box" placeholder="О себе (био)"
+                style="width: 100%; margin-bottom: 20px; border-radius: 12px; min-height: 80px; resize: vertical;"></textarea>
+            <button id="editProfileSaveBtn" class="google-btn"
+                style="background: var(--accent-gradient); color: white;">Сохранить изменения</button>
         </div>
     </div>
 

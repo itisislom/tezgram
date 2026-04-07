@@ -38,6 +38,8 @@ body {
     justify-content: center;
     align-items: center;
     padding: 20px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
@@ -212,10 +214,39 @@ body {
     object-fit: cover;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     position: relative;
+    flex-shrink: 0;
+    background: var(--bg-glass);
 }
 
 .avatar-container {
     position: relative;
+}
+
+.avatar-preview-container {
+    position: relative;
+    display: inline-block;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
 }
 
 .status-indicator {
@@ -407,7 +438,8 @@ body {
     scroll-behavior: smooth;
     will-change: scroll-position;
     transform: translateZ(0);
-    /* Hardware acceleration */
+    contain: layout style paint;
+    -webkit-overflow-scrolling: touch;
 }
 
 .message {
@@ -426,6 +458,15 @@ body {
     position: relative;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     min-width: 60px;
+    word-break: break-word;
+    word-wrap: break-word;
+}
+
+.message-content img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
 }
 
 .msg-meta {
@@ -608,13 +649,17 @@ body {
         width: 300px;
         min-width: 250px;
     }
+
+    .avatar {
+        width: 48px;
+        height: 48px;
+    }
 }
 
 @media (max-width: 768px) {
     body {
         padding: 0;
         overflow: hidden;
-        /* Prevent pull-to-refresh and body scrolling */
     }
 
     #app {
@@ -632,7 +677,6 @@ body {
         flex-shrink: 0;
         transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         background: var(--bg-primary);
-        /* Solid bg preventing overlap visibility */
     }
 
     .chat-window {
@@ -651,7 +695,6 @@ body {
         max-width: 85%;
     }
 
-    /* Slider logic using translate */
     body.chat-active .sidebar {
         transform: translateX(-100%);
     }
@@ -662,13 +705,208 @@ body {
 
     .send-btn {
         display: flex !important;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px;
+        min-height: 44px;
+        padding: 0 !important;
+        flex-shrink: 0;
+    }
+
+    .current-actions button {
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 18px !important;
+    }
+
+    .chat-input-area {
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .attach-btn,
+    .emoji-btn {
+        padding: 10px;
+        font-size: 20px;
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .input-box {
+        padding: 12px 16px;
+        font-size: 16px;
+    }
+
+    .chat-header {
+        padding: 12px 16px;
+        min-height: 60px;
+    }
+
+    .current-chat-info h3 {
+        font-size: 16px;
+    }
+
+    .current-status {
+        font-size: 12px;
+    }
+
+    .messages-area {
+        padding: 12px;
+    }
+
+    .login-card {
+        margin: 20px;
+        padding: 24px;
+        width: calc(100% - 40px);
+        max-width: 400px;
+    }
+
+    .profile-setup-modal .login-card,
+    .edit-profile-modal .login-card {
+        margin: 10px;
+        padding: 20px;
+        width: calc(100% - 20px);
+        max-width: none;
+    }
+
+    .avatar-upload {
+        text-align: center;
+    }
+
+    .avatar-preview-container {
+        margin: 0 auto;
+    }
+
+    #callModal {
+        padding: 0;
+    }
+
+    .call-control-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 18px;
+    }
+
+    #localVideo {
+        width: 80px;
+        height: 120px;
+        bottom: 80px;
+        right: 10px;
+    }
+
+    .emoji-picker {
+        bottom: 70px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        max-width: none;
+        grid-template-columns: repeat(6, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .sidebar-header {
+        padding: 16px;
+    }
+
+    .brand {
+        font-size: 20px;
+    }
+
+    .search-container {
+        padding: 0 16px 16px;
+    }
+
+    .chat-item {
+        padding: 12px 16px;
+    }
+
+    .avatar {
         width: 40px;
         height: 40px;
     }
 
+    .message {
+        max-width: 90%;
+        font-size: 14px;
+    }
+
+    .input-box {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+
     .chat-input-area {
-        padding: 10px;
+        padding: 8px;
+        gap: 6px;
+    }
+
+    .attach-btn,
+    .emoji-btn,
+    .send-btn {
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px;
+        min-height: 40px;
+        font-size: 16px;
+    }
+
+    .current-actions button {
+        width: 40px !important;
+        height: 40px !important;
+        min-width: 40px;
+        min-height: 40px;
+        font-size: 16px !important;
+    }
+
+    .call-control-btn {
+        width: 45px;
+        height: 45px;
+        font-size: 16px;
+    }
+
+    #localVideo {
+        width: 60px;
+        height: 90px;
+        bottom: 70px;
+        right: 8px;
+    }
+
+    .emoji-picker {
+        grid-template-columns: repeat(4, 1fr);
         gap: 8px;
+        padding: 12px;
+    }
+
+    .emoji-picker span {
+        font-size: 20px;
+    }
+
+    .login-card {
+        margin: 16px;
+        padding: 20px;
+    }
+
+    .login-card h2 {
+        font-size: 24px;
+    }
+
+    .google-btn {
+        padding: 14px 20px;
+        font-size: 14px;
+    }
+
+    .input-box {
+        padding: 12px 14px;
+        font-size: 16px;
+    }
+
+    textarea.input-box {
+        min-height: 70px;
     }
 }
 
@@ -687,6 +925,8 @@ body {
     align-items: center;
     transition: var(--transition);
     backdrop-filter: blur(10px);
+    min-width: 60px;
+    min-height: 60px;
 }
 
 .call-control-btn:hover {
@@ -706,11 +946,21 @@ body {
     background: #10b981;
 }
 
+@media (max-width: 768px) {
+    .call-control-btn {
+        width: 56px;
+        height: 56px;
+        min-width: 56px;
+        min-height: 56px;
+        font-size: 18px;
+    }
+}
+
 /* Emoji Picker Drawer */
 .emoji-picker {
-    position: absolute;
-    bottom: 80px;
-    right: 80px;
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
     background: var(--bg-secondary);
     backdrop-filter: blur(20px);
     border: 1px solid var(--border-glass);
@@ -720,16 +970,32 @@ body {
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
     z-index: 1000;
+    max-width: 300px;
 }
 
 .emoji-picker span {
     font-size: 24px;
     cursor: pointer;
     transition: var(--transition);
+    user-select: none;
 }
 
 .emoji-picker span:hover {
     transform: scale(1.2);
+}
+
+@media (max-width: 768px) {
+    .emoji-picker {
+        bottom: 70px;
+        right: 10px;
+        grid-template-columns: repeat(6, 1fr);
+        padding: 10px;
+        gap: 5px;
+    }
+
+    .emoji-picker span {
+        font-size: 20px;
+    }
 }
 
 /* Auth Logic Screens */
