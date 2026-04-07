@@ -33,6 +33,11 @@ onAuthStateChanged(auth, async (user) => {
             // Clean up any stale call records for this user on load
             await deleteDoc(doc(db, "calls", user.uid));
             
+            // Also clean up any calls where the user was the caller (if they reloaded mid-call)
+            const qCaller = query(collection(db, "calls"), where("callerId", "==", user.uid));
+            const callerSnaps = await getDocs(qCaller);
+            callerSnaps.forEach(d => deleteDoc(d.ref));
+
             loadUsersAndChats(); listenForIncomingCalls();
         } else { loginScreen.style.display = 'none'; profileSetupModal.style.display = 'flex'; }
     } else { loginScreen.style.display = 'flex'; appScreen.style.display = 'none'; if (messagesUnsubscribe) messagesUnsubscribe(); }
@@ -125,15 +130,41 @@ const startCall = async (type) => {
     pc.onicecandidate = e => e.candidate && addDoc(collection(db, "calls", activeCallDocId, "offerCandidates"), e.candidate.toJSON());
     pc.ontrack = e => { ringtoneOutgoing.pause(); remoteVideo.srcObject = e.streams[0]; };
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
-    await setDoc(doc(db, "calls", activeCallDocId), { offer, callerName: currentUserDoc.name, type, callerId: currentUser.uid });
-    callUnsubscribe = onSnapshot(doc(db, "calls", activeCallDocId), s => { if (!s.exists()) endCall(); });
-    onSnapshot(doc(db, "calls", activeCallDocId), s => { if (s.data()?.answer && !pc.currentRemoteDescription) pc.setRemoteDescription(new RTCSessionDescription(s.data().answer)); });
-    onSnapshot(collection(db, "calls", activeCallDocId, "answerCandidates"), s => { s.docChanges().forEach(c => c.type === 'added' && pc.addIceCandidate(new RTCIceCandidate(c.doc.data()))); });
+    await setDoc(doc(db, "calls", activeCallDocId), { offer, callerName: currentUserDoc.name, type, callerId: currentUser.uid, sentAt: serverTimestamp() });
+    
+    // Single consolidated listener for the call status
+    callUnsubscribe = onSnapshot(doc(db, "calls", activeCallDocId), s => {
+        const data = s.data();
+        if (!s.exists()) { endCall(); return; }
+        if (data?.answer && !pc.currentRemoteDescription) pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+    });
+    
+    // Ice candidates listener
+    const candyUnsub = onSnapshot(collection(db, "calls", activeCallDocId, "answerCandidates"), s => {
+        s.docChanges().forEach(c => c.type === 'added' && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
+    });
+    
+    // Store both unsubs to clean up
+    const originalUnsub = callUnsubscribe;
+    callUnsubscribe = () => { originalUnsub(); candyUnsub(); };
 };
+let callListenerUnsubscribe = null;
 function listenForIncomingCalls() {
-    onSnapshot(doc(db, "calls", currentUser.uid), async (s) => {
+    if (callListenerUnsubscribe) callListenerUnsubscribe();
+    callListenerUnsubscribe = onSnapshot(doc(db, "calls", currentUser.uid), async (s) => {
         const data = s.data();
         if (s.exists() && data.offer && !pc) {
+            // ONLY accept calls that were sent recently (within last 30s) to avoid stale calls on reload
+            const now = Date.now();
+            const sentAt = data.sentAt?.toMillis ? data.sentAt.toMillis() : (data.sentAt || 0);
+            const isStale = !sentAt || (now - sentAt) > 40000; // 40 seconds buffer
+
+            if (isStale) {
+                console.log("Ignoring stale or missing timestamp call from before session");
+                deleteDoc(doc(db, "calls", currentUser.uid));
+                return;
+            }
+
             activeCallDocId = currentUser.uid;
             ringtoneIncoming.play(); callModal.style.display = 'flex';
             callStatusText.textContent = `Входящий ${data.type === 'video' ? 'видео' : 'аудио'} вызов...`;
@@ -157,10 +188,11 @@ function listenForIncomingCalls() {
                 await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                 const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
                 await setDoc(doc(db, "calls", currentUser.uid), { answer }, { merge: true });
-                callUnsubscribe = onSnapshot(doc(db, "calls", currentUser.uid), s => { if (!s.exists()) endCall(); });
+                
+                const unsub = onSnapshot(doc(db, "calls", currentUser.uid), s => { if (!s.exists()) endCall(); });
+                callUnsubscribe = unsub;
             };
         } else if (!s.exists()) {
-            // If the call document is gone and the modal is visible, we should end the call (fixed hanging)
             if (pc || callModal.style.display === 'flex') endCall();
         }
     });
