@@ -1,0 +1,21 @@
+{
+  "name": "TezGram Messenger",
+  "short_name": "TezGram",
+  "description": "Современный и безопасный мессенджер с видеозвонками",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0F",
+  "theme_color": "#06b6d4",
+  "icons": [
+    {
+      "src": "assets/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
