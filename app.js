@@ -1,8 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, getDoc, query, onSnapshot, orderBy, addDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, getDoc, query, onSnapshot, orderBy, addDoc, serverTimestamp, deleteDoc, updateDoc, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// -- FIREBASE CONFIGURATION --
+// -- FIREBASE CONFIG --
 const firebaseConfig = {
     apiKey: "AIzaSyBINneLJjwUsvtfuareLZxXPeCcMRxDNlY",
     authDomain: "tezgram-84b50.firebaseapp.com",
@@ -12,482 +12,335 @@ const firebaseConfig = {
     appId: "1:895242860702:web:e27468b067af1c5d2fa38f"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// -- DOM ELEMENTS --
+// -- DOM --
 const loginScreen = document.getElementById('loginScreen');
 const profileSetupModal = document.getElementById('profileSetupModal');
 const appScreen = document.getElementById('app');
-const googleLoginBtn = document.getElementById('googleLoginBtn');
-const logoutBtn = document.getElementById('logoutBtn');
 const chatList = document.getElementById('chatList');
+const selfProfileView = document.getElementById('selfProfileView');
 const searchInput = document.getElementById('searchInput');
-
-// Chat UI Elements
 const chatWindow = document.getElementById('chatWindow');
 const messagesArea = document.getElementById('messagesArea');
 const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
-const attachBtn = document.getElementById('attachBtn');
-const imageInput = document.getElementById('imageInput');
-const currentAvatar = document.getElementById('currentAvatar');
-const currentName = document.getElementById('currentName');
-const currentStatus = document.getElementById('currentStatus');
+const backBtn = document.getElementById('backBtn');
+const emojiBtn = document.querySelector('.emoji-btn');
+const emojiPicker = document.getElementById('emojiPicker');
+const installBanner = document.getElementById('installBanner');
+const installText = document.getElementById('installText');
 
-// Call UI Elements
-const callBtn = document.getElementById('callBtn');
-const videoBtn = document.getElementById('videoBtn');
 const callModal = document.getElementById('callModal');
 const localVideo = document.getElementById('localVideo');
 const remoteVideo = document.getElementById('remoteVideo');
 const callStatusText = document.getElementById('callStatusText');
-const answerCallBtn = document.getElementById('answerCallBtn');
-const rejectCallBtn = document.getElementById('rejectCallBtn');
-const endCallBtn = document.getElementById('endCallBtn');
+const ringtoneIncoming = document.getElementById('ringtoneIncoming');
+const ringtoneOutgoing = document.getElementById('ringtoneOutgoing');
 
-// -- STATE --
+// STATE
 let currentUser = null;
-let currentUserDoc = null; 
+let currentUserDoc = null;
 let currentChatUserId = null;
-let currentChatId = null; 
-let allUsers = [];
+let currentChatId = null;
 let messagesUnsubscribe = null;
+let activeCallDocId = null;
+let pc = null;
+let localStream = null;
 
-// -- AUTHENTICATION & PROFILE SETUP --
-googleLoginBtn.addEventListener('click', async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-        await signInWithPopup(auth, provider);
-    } catch (error) {
-        alert("Ошибка авторизации: " + error.message);
-    }
-});
-
-logoutBtn.addEventListener('click', () => signOut(auth));
-
+// -- AUTH & STATUS --
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
-        
+
         if (userSnap.exists() && userSnap.data().username) {
-            // User already has profile setup
             currentUserDoc = userSnap.data();
             loginScreen.style.display = 'none';
-            profileSetupModal.style.display = 'none';
             appScreen.style.display = 'flex';
-            
-            await setDoc(userRef, { isOnline: true, lastSeen: serverTimestamp() }, { merge: true });
-            
+            updateStatus(true);
+            setInterval(() => updateStatus(true), 30000);
             loadUsersAndChats();
             listenForIncomingCalls();
         } else {
-            // User completely new - Show Profile Setup
             loginScreen.style.display = 'none';
             profileSetupModal.style.display = 'flex';
-            appScreen.style.display = 'none';
-            
-            const prevPhoto = userSnap.exists() && userSnap.data().avatar ? userSnap.data().avatar : user.photoURL || 'https://via.placeholder.com/100';
-            document.getElementById('profilePreview').src = prevPhoto;
-            let finalImageBase64 = prevPhoto;
-            
-            // Image Compress hook
-            document.getElementById('profilePreview').onclick = () => document.getElementById('profileImageInput').click();
-            document.getElementById('profileImageInput').onchange = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = 150; canvas.height = 150;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, 150, 150);
-                        finalImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
-                        document.getElementById('profilePreview').src = finalImageBase64;
-                    };
-                    img.src = ev.target.result;
-                }
-                reader.readAsDataURL(file);
-            };
-            
-            document.getElementById('saveProfileBtn').onclick = async () => {
-                const username = document.getElementById('usernameInput').value.trim();
-                const bio = document.getElementById('bioInput').value.trim();
-                
-                if (!username) return alert("Пожалуйста, введите уникальный @username!");
-                
-                const profileData = {
-                    uid: user.uid,
-                    name: user.displayName || 'Аноним',
-                    username: "@" + username.replace('@',''),
-                    bio: bio || "Привет! Я использую TezGram.",
-                    avatar: finalImageBase64,
-                    email: user.email,
-                    isOnline: true,
-                    lastSeen: serverTimestamp()
-                };
-                
-                await setDoc(userRef, profileData);
-                currentUserDoc = profileData;
-                
-                profileSetupModal.style.display = 'none';
-                appScreen.style.display = 'flex';
-                
-                loadUsersAndChats();
-                listenForIncomingCalls();
-            };
         }
     } else {
-        currentUser = null;
         loginScreen.style.display = 'flex';
         appScreen.style.display = 'none';
-        profileSetupModal.style.display = 'none';
         if (messagesUnsubscribe) messagesUnsubscribe();
     }
 });
 
-// -- USERS & CHAT LIST --
+async function updateStatus(isOnline) {
+    if (!currentUser) return;
+    await setDoc(doc(db, "users", currentUser.uid), { isOnline, lastSeen: serverTimestamp() }, { merge: true });
+}
+
+window.onbeforeunload = () => updateStatus(false);
+
+// -- PWA --
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBanner.style.display = 'flex';
+});
+
+document.getElementById('installBtn').onclick = async () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') installBanner.style.display = 'none';
+        deferredPrompt = null;
+    }
+};
+document.getElementById('closeBannerBtn').onclick = () => installBanner.style.display = 'none';
+
+// -- CHAT LIST --
 function loadUsersAndChats() {
-    chatList.innerHTML = '<div style="padding: 20px; text-align:center; color: var(--text-secondary);">Ищем пользователей в базе TezGram...</div>';
-    
     onSnapshot(collection(db, "users"), (snapshot) => {
-        allUsers = snapshot.docs.map(doc => doc.data()).filter(u => u.uid !== currentUser.uid);
-        renderUserList(allUsers);
+        const users = snapshot.docs.map(d => d.data()).filter(u => u.uid !== currentUser.uid);
+        const now = Date.now();
+        users.forEach(u => {
+            // Trust the manual isOnline flag first
+            if (u.isOnline === true) {
+                // Check heartbeat only if lastSeen exists, giving a large 5-min window for skew
+                if (u.lastSeen && typeof u.lastSeen.toMillis === 'function') {
+                    const lastSeenMs = u.lastSeen.toMillis();
+                    u.isActualOnline = (now - lastSeenMs) < 300000; // 5 minutes
+                } else {
+                    u.isActualOnline = true; // Still pending or just logged in
+                }
+            } else {
+                u.isActualOnline = false;
+            }
+        });
+        renderUserList(users);
     });
 }
 
 function renderUserList(users) {
     chatList.innerHTML = '';
-    if (users.length === 0) {
-        chatList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary); font-size: 14px;">Пока пусто.</div>';
-        return;
-    }
-
-    users.forEach(user => {
+    users.forEach(u => {
         const div = document.createElement('div');
         div.className = 'chat-item';
-        const statusClass = user.isOnline ? 'status-online' : 'status-offline';
-        
         div.innerHTML = `
-            <div class="avatar-container">
-                <img src="${user.avatar || 'https://via.placeholder.com/150'}" class="avatar">
-                <div class="status-indicator ${statusClass}"></div>
-            </div>
-            <div class="chat-info">
-                <div class="chat-top">
-                    <span class="chat-name">${user.name} <small style="color:var(--text-secondary); font-weight:normal;">${user.username || ''}</small></span>
-                </div>
-                <div class="chat-bottom">
-                    <span class="chat-preview">${user.bio || 'Нажмите, чтобы открыть чат'}</span>
-                </div>
-            </div>
+            <div class="avatar-container"><img src="${u.avatar}" class="avatar"><div class="status-indicator ${u.isActualOnline ? 'status-online' : 'status-offline'}"></div></div>
+            <div class="chat-info"><span class="chat-name">${u.name}</span><p class="chat-preview">${u.bio || ''}</p></div>
         `;
-        div.addEventListener('click', () => openChatWith(user, div));
+        div.onclick = () => openChatWith(u, div);
         chatList.appendChild(div);
     });
 }
 
-searchInput.addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase().trim();
-    if (query === '') {
-        renderUserList(allUsers);
-    } else {
-        const filtered = allUsers.filter(u => 
-            u.name.toLowerCase().includes(query) || 
-            (u.username && u.username.toLowerCase().includes(query))
-        );
-        renderUserList(filtered);
-    }
-});
-
-// -- CHATTING LOGIC --
-function openChatWith(otherUser, elementNode) {
-    document.querySelectorAll('.chat-item').forEach(c => c.classList.remove('active'));
-    if (elementNode) elementNode.classList.add('active');
-    
+// -- INCREMENTAL RENDERING (Fixes Flickering) --
+function openChatWith(otherUser, node) {
     currentChatUserId = otherUser.uid;
-    const sortedIds = [currentUser.uid, otherUser.uid].sort();
-    currentChatId = sortedIds.join("_");
+    currentChatId = [currentUser.uid, otherUser.uid].sort().join("_");
+    
+    document.getElementById('currentAvatar').src = otherUser.avatar;
+    document.getElementById('currentName').textContent = otherUser.name;
+    document.getElementById('currentStatus').textContent = otherUser.isActualOnline ? 'онлайн' : 'офлайн';
 
-    currentAvatar.src = otherUser.avatar || 'https://via.placeholder.com/150';
-    currentName.textContent = otherUser.name;
-    currentStatus.textContent = otherUser.isOnline ? 'онлайн' : 'был(а) недавно';
-    currentStatus.style.color = otherUser.isOnline ? 'var(--accent-color)' : 'var(--text-secondary)';
+    chatWindow.classList.add('has-active');
+    document.body.classList.add('chat-active');
 
-    chatWindow.classList.add('has-active'); // Enables active chat UI
-    if (window.innerWidth <= 768) document.body.classList.add('chat-active');
-
+    messagesArea.innerHTML = ''; // Initial clear only
     if (messagesUnsubscribe) messagesUnsubscribe();
-    messagesArea.innerHTML = '<div style="margin: auto; color: var(--text-secondary);">Синхронизация с сервером...</div>';
 
-    const q = query(
-        collection(db, "chats", currentChatId, "messages"),
-        orderBy("timestamp", "asc")
-    );
+    markMessagesAsRead(currentChatId, otherUser.uid);
 
+    const q = query(collection(db, "chats", currentChatId, "messages"), orderBy("timestamp", "asc"));
+    
     messagesUnsubscribe = onSnapshot(q, (snapshot) => {
-        messagesArea.innerHTML = '';
-        if (snapshot.empty) {
-            messagesArea.innerHTML = `
-                <div class="empty-chat" style="height: auto; margin: auto;">
-                    <i class="fa-regular fa-handshake" style="font-size: 40px;"></i>
-                    <h3 style="color: var(--text-primary); font-weight: 500; margin-top: 10px;">Здравствуйте!</h3>
-                    <p style="font-size: 13px;">Напишите первое сообщение пользователю ${otherUser.name}</p>
-                </div>
-            `;
-            return;
-        }
+        snapshot.docChanges().forEach((change) => {
+            const data = change.doc.data();
+            const msgId = change.doc.id;
 
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            renderMessage(data, otherUser.avatar);
+            if (change.type === "added") {
+                renderMessage(data, otherUser.avatar, msgId);
+                // Mark incoming as read (on receiver side)
+                if (data.senderId === otherUser.uid && !data.isRead) {
+                    updateDoc(change.doc.ref, { isRead: true }).catch(e => console.error("Read update failed", e));
+                }
+            } else if (change.type === "modified") {
+                updateMessageStatusUI(msgId, data.isRead);
+            }
         });
-        messagesArea.scrollTop = messagesArea.scrollHeight;
+        messagesArea.scrollTo({ top: messagesArea.scrollHeight, behavior: 'smooth' });
     });
 }
 
-function renderMessage(data, otherUserAvatar) {
+async function markMessagesAsRead(chatId, otherUid) {
+    const q = query(collection(db, "chats", chatId, "messages"), where("senderId", "==", otherUid), where("isRead", "==", false));
+    const snap = await getDocs(q);
+    snap.forEach(d => updateDoc(d.ref, { isRead: true }));
+}
+
+function renderMessage(data, avatar, id) {
     const isMe = data.senderId === currentUser.uid;
-    let timeStr = "";
-    if (data.timestamp) {
-        const d = data.timestamp.toDate();
-        timeStr = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
-    }
-
     const div = document.createElement('div');
+    div.id = `msg-${id}`;
     div.className = `message ${isMe ? 'sent' : 'received'}`;
-
-    let contentHTML = ``;
-    if (data.type === 'image') {
-        contentHTML = `<img src="${data.text}" style="max-width: 100%; max-height: 300px; border-radius: 8px; margin-bottom: 5px; cursor: pointer;">`;
-    } else {
-        contentHTML = escapeHTML(data.text);
-    }
+    
+    // Always render the icon container for sent messages so we can update it
+    const statusIcon = data.isRead ? '<i class="fa-solid fa-check-double"></i>' : '<i class="fa-solid fa-check"></i>';
+    const statusHtml = isMe ? `<span class="message-status-icon" id="status-${id}">${statusIcon}</span>` : '';
 
     div.innerHTML = `
-        ${!isMe ? `<img src="${otherUserAvatar || 'https://via.placeholder.com/50'}" class="avatar" style="width: 32px; height: 32px">` : ''}
+        ${!isMe ? `<img src="${avatar}" class="avatar" style="width:30px;height:30px">` : ''}
         <div class="message-content">
-            ${contentHTML}
-            <span class="message-time">${timeStr}</span>
+            <div class="msg-text">${data.type === 'image' ? `<img src="${data.text}" style="max-width:100%; border-radius:8px;">` : data.text}</div>
+            <div class="msg-meta">${statusHtml}</div>
         </div>
     `;
     messagesArea.appendChild(div);
 }
 
-// -- SEND MESSAGES (TEXT & BASE64 IMAGES) --
-async function sendMessage(text, type = 'text') {
-    if (!currentChatId || (!text && type === 'text')) return;
-    const value = type === 'text' ? text.trim() : text;
-    if (!value) return;
-
-    if (type === 'text') messageInput.value = '';
-
-    await addDoc(collection(db, "chats", currentChatId, "messages"), {
-        senderId: currentUser.uid,
-        text: value,
-        type: type,
-        timestamp: serverTimestamp()
-    });
+function updateMessageStatusUI(id, isRead) {
+    const statusEl = document.getElementById(`status-${id}`);
+    if (statusEl) {
+        statusEl.innerHTML = isRead ? '<i class="fa-solid fa-check-double"></i>' : '<i class="fa-solid fa-check"></i>';
+    }
 }
 
-sendBtn.addEventListener('click', () => sendMessage(messageInput.value));
-messageInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') sendMessage(messageInput.value);
-});
+const doSendMessage = async () => {
+    const text = messageInput.value.trim();
+    if (!text || !currentChatId) return;
+    messageInput.value = '';
+    await addDoc(collection(db, "chats", currentChatId, "messages"), {
+        senderId: currentUser.uid,
+        text: text,
+        type: 'text',
+        isRead: false,
+        timestamp: serverTimestamp()
+    });
+};
 
-attachBtn.addEventListener('click', () => imageInput.click());
-imageInput.addEventListener('change', (e) => {
+sendBtn.onclick = doSendMessage;
+messageInput.onkeypress = (e) => { if(e.key === 'Enter') doSendMessage(); };
+backBtn.onclick = () => document.body.classList.remove('chat-active');
+emojiBtn.onclick = () => emojiPicker.style.display = emojiPicker.style.display === 'none' ? 'grid' : 'none';
+
+// -- IMAGE ATTACHMENT --
+document.getElementById('attachBtn').onclick = () => document.getElementById('imageInput').click();
+document.getElementById('imageInput').onchange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
         const img = new Image();
         img.onload = () => {
             const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 800; const MAX_HEIGHT = 800;
-            let width = img.width; let height = img.height;
-            if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
-            else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
-
-            canvas.width = width; canvas.height = height;
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+            if (width > height) {
+                if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+            } else {
+                if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+            }
+            canvas.width = width;
+            canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            const base64String = canvas.toDataURL('image/jpeg', 0.6);
-            if(base64String.length > 900000) {
-                 return alert("Изображение слишком тяжелое. Выберите другое!");
-            }
-            sendMessage(base64String, 'image');
+            const base64 = canvas.toDataURL('image/jpeg', 0.6);
+            addDoc(collection(db, "chats", currentChatId, "messages"), {
+                senderId: currentUser.uid,
+                text: base64,
+                type: 'image',
+                isRead: false,
+                timestamp: serverTimestamp()
+            });
         };
         img.src = event.target.result;
     };
     reader.readAsDataURL(file);
-});
+};
 
-// -- WEBRTC CALL SIGNALING (FIRESTORE) --
-let pc = null;
-let localStream = null;
-let remoteStream = null;
-let activeCallDocId = null;
-
-const rtcConfig = { iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }] };
-
-async function getMedia() {
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        localVideo.srcObject = localStream;
-    } catch(err) {
-        alert("Нет доступа к камере или микрофону!");
-        throw err;
-    }
-}
-
-// 1. Caller starts call
-const initiateCall = async () => {
-    if (!currentChatUserId) return;
-    activeCallDocId = currentChatUserId; // we write to recipient's inbox
-    
+// -- CALLS --
+const startCall = async (type) => {
+    activeCallDocId = currentChatUserId;
     callModal.style.display = 'flex';
-    answerCallBtn.style.display = 'none';
-    rejectCallBtn.style.display = 'none';
-    endCallBtn.style.display = 'block';
-    callStatusText.textContent = `Звонок ${currentName.textContent}...`;
-
-    await getMedia();
-    
-    pc = new RTCPeerConnection(rtcConfig);
-    remoteStream = new MediaStream();
-    remoteVideo.srcObject = remoteStream;
-
+    ringtoneOutgoing.play();
+    localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video', audio: true });
+    localVideo.srcObject = type === 'video' ? localStream : null;
+    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]});
     localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-    pc.ontrack = e => e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t));
-
-    const callDoc = doc(collection(db, "calls"), activeCallDocId);
-    const offerCandidates = collection(callDoc, 'offerCandidates');
-    const answerCandidates = collection(callDoc, 'answerCandidates');
-
-    pc.onicecandidate = e => {
-        if(e.candidate) addDoc(offerCandidates, e.candidate.toJSON());
-    };
-
-    const offerDescription = await pc.createOffer();
-    await pc.setLocalDescription(offerDescription);
-
-    const callData = {
-        offer: { type: offerDescription.type, sdp: offerDescription.sdp },
-        caller: currentUser.uid,
-        callerName: currentUserDoc.name
-    };
-    await setDoc(callDoc, callData);
-
-    onSnapshot(callDoc, snapshot => {
-        const data = snapshot.data();
-        if (!pc.currentRemoteDescription && data?.answer) {
-            pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-            callStatusText.textContent = '';
-        }
+    pc.onicecandidate = e => e.candidate && addDoc(collection(db, "calls", activeCallDocId, "offerCandidates"), e.candidate.toJSON());
+    pc.ontrack = e => { ringtoneOutgoing.pause(); remoteVideo.srcObject = e.streams[0]; };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await setDoc(doc(db, "calls", activeCallDocId), { offer, callerName: currentUserDoc.name, type, callerId: currentUser.uid });
+    onSnapshot(doc(db, "calls", activeCallDocId), s => {
+        if (s.data()?.answer && !pc.currentRemoteDescription) pc.setRemoteDescription(new RTCSessionDescription(s.data().answer));
     });
-
-    onSnapshot(answerCandidates, snapshot => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === 'added') pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-        });
+    onSnapshot(collection(db, "calls", activeCallDocId, "answerCandidates"), s => {
+        s.docChanges().forEach(c => c.type === 'added' && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
     });
 };
 
-callBtn.addEventListener('click', initiateCall);
-videoBtn.addEventListener('click', initiateCall); // Use same function
-
-// 2. Callee listens for incoming calls
 function listenForIncomingCalls() {
-    const callDoc = doc(collection(db, "calls"), currentUser.uid);
-    onSnapshot(callDoc, snapshot => {
-        const data = snapshot.data();
-        if (snapshot.exists() && data && data.offer && !pc) {
-            // Incoming Call
-            activeCallDocId = currentUser.uid;
+    onSnapshot(doc(db, "calls", currentUser.uid), async (s) => {
+        const data = s.data();
+        if (s.exists() && data.offer && !pc) {
+            ringtoneIncoming.play();
             callModal.style.display = 'flex';
-            callStatusText.textContent = 'Входящий видеозвонок от: ' + data.callerName;
-            answerCallBtn.style.display = 'block';
-            rejectCallBtn.style.display = 'block';
-            endCallBtn.style.display = 'none';
-
-            answerCallBtn.onclick = () => acceptCall(callDoc, data.offer);
-            rejectCallBtn.onclick = () => {
-                deleteDoc(callDoc);
-                callModal.style.display = 'none';
-                activeCallDocId = null;
+            document.getElementById('answerCallBtn').style.display = 'block';
+            document.getElementById('rejectCallBtn').style.display = 'block';
+            document.getElementById('endCallBtn').style.display = 'none';
+            document.getElementById('answerCallBtn').onclick = async () => {
+                ringtoneIncoming.pause();
+                document.getElementById('answerCallBtn').style.display = 'none';
+                document.getElementById('endCallBtn').style.display = 'block';
+                localStream = await navigator.mediaDevices.getUserMedia({ video: data.type === 'video', audio: true });
+                localVideo.srcObject = data.type === 'video' ? localStream : null;
+                pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]});
+                localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+                pc.onicecandidate = e => e.candidate && addDoc(collection(db, "calls", currentUser.uid, "answerCandidates"), e.candidate.toJSON());
+                pc.ontrack = e => remoteVideo.srcObject = e.streams[0];
+                await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                await setDoc(doc(db, "calls", currentUser.uid), { answer }, { merge: true });
             };
-        }
-        if (!snapshot.exists() && pc) {
-            // caller hung up
-            hangUp();
-        }
+        } else if (!s.exists() && pc) endCall();
     });
 }
 
-// 3. Callee accepts call
-async function acceptCall(callDoc, offer) {
-    answerCallBtn.style.display = 'none';
-    rejectCallBtn.style.display = 'none';
-    endCallBtn.style.display = 'block';
-    callStatusText.textContent = 'Соединение...';
-
-    await getMedia();
-    
-    pc = new RTCPeerConnection(rtcConfig);
-    remoteStream = new MediaStream();
-    remoteVideo.srcObject = remoteStream;
-
-    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
-    pc.ontrack = e => {
-        e.streams[0].getTracks().forEach(t => remoteStream.addTrack(t));
-        callStatusText.textContent = '';
-    };
-
-    const offerCandidates = collection(callDoc, 'offerCandidates');
-    const answerCandidates = collection(callDoc, 'answerCandidates');
-
-    pc.onicecandidate = e => {
-        if(e.candidate) addDoc(answerCandidates, e.candidate.toJSON());
-    };
-
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    const answerDescription = await pc.createAnswer();
-    await pc.setLocalDescription(answerDescription);
-
-    await setDoc(callDoc, { answer: { type: answerDescription.type, sdp: answerDescription.sdp } }, { merge: true });
-
-    onSnapshot(offerCandidates, snapshot => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === 'added') pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
-        });
-    });
-}
-
-// 4. Hang up
-async function hangUp() {
-    if (pc) { pc.close(); pc = null; }
-    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+function endCall() {
+    ringtoneIncoming.pause(); ringtoneOutgoing.pause();
+    if (pc) pc.close(); pc = null;
+    if (localStream) localStream.getTracks().forEach(t => t.stop());
     callModal.style.display = 'none';
-    
-    if (activeCallDocId) {
-        await deleteDoc(doc(db, "calls", activeCallDocId));
-        activeCallDocId = null;
-    }
 }
-endCallBtn.addEventListener('click', hangUp);
 
-// -- UI HELPERS --
-function escapeHTML(str) {
-    return str.replace(/[&<>'"]/g, tag => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
-    }[tag] || tag));
-}
+document.getElementById('callBtn').onclick = () => startCall('audio');
+document.getElementById('videoBtn').onclick = () => startCall('video');
+document.getElementById('endCallBtn').onclick = endCall;
+document.getElementById('rejectCallBtn').onclick = endCall;
+
+// -- PROFILE ACTIONS --
+document.getElementById('profileViewBtn').onclick = () => {
+    chatList.style.display = 'none'; selfProfileView.style.display = 'block';
+    document.getElementById('myProfilePhoto').src = currentUserDoc.avatar;
+    document.getElementById('myProfileName').textContent = currentUserDoc.name;
+    document.getElementById('myProfileUsername').textContent = currentUserDoc.username;
+    document.getElementById('myProfileBio').textContent = currentUserDoc.bio;
+};
+document.getElementById('backToChatsBtn').onclick = () => {
+    selfProfileView.style.display = 'none'; chatList.style.display = 'flex';
+};
+document.getElementById('saveProfileBtn').onclick = async () => {
+    const userRef = doc(db, "users", currentUser.uid);
+    const profile = { uid: currentUser.uid, name: currentUser.displayName, username: "@" + document.getElementById('usernameInput').value, bio: document.getElementById('bioInput').value, avatar: document.getElementById('profilePreview').src, isOnline: true };
+    await setDoc(userRef, profile); currentUserDoc = profile;
+    profileSetupModal.style.display = 'none'; appScreen.style.display = 'flex';
+};

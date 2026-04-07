@@ -61,6 +61,13 @@
 
 <body>
 
+    <!-- PWA Install Banner (Slim Top) -->
+    <div id="installBanner" style="display: none; position: fixed; top: 0; left: 0; right: 0; background: rgba(6, 182, 212, 0.9); backdrop-filter: blur(10px); padding: 8px 15px; z-index: 10001; box-shadow: 0 2px 10px rgba(0,0,0,0.3); justify-content: center; align-items: center; gap: 15px; font-size: 13px;">
+        <span id="installText" style="color: white; font-weight: 500;">Установите TezGram на это устройство!</span>
+        <button id="installBtn" style="background: white; color: #06b6d4; border: none; padding: 4px 12px; border-radius: 8px; cursor: pointer; font-weight: 600;">Установить</button>
+        <button id="closeBannerBtn" style="background: none; border: none; color: white; cursor: pointer; font-size: 18px; padding: 0 5px;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
     <!-- Auth Login Screen (hidden when logged in) -->
     <div id="loginScreen" class="login-screen">
         <div class="login-card">
@@ -83,6 +90,8 @@
                     TezGram
                 </div>
                 <div class="header-actions">
+                    <button id="profileViewBtn" aria-label="Profile" title="Профиль"><i
+                            class="fa-solid fa-user"></i></button>
                     <button id="logoutBtn" aria-label="Logout" title="Выйти"><i
                             class="fa-solid fa-right-from-bracket"></i></button>
                 </div>
@@ -97,6 +106,27 @@
 
             <div class="chat-list" id="chatList">
                 <!-- Dynamite users loaded from Firestore here... -->
+            </div>
+
+            <!-- Profile Sidebar View (hidden by default) -->
+            <div id="selfProfileView" class="chat-list" style="display: none; padding: 24px; text-align: center;">
+                <div class="avatar-container" style="display: inline-block; margin-bottom: 20px;">
+                    <img id="myProfilePhoto" src="" class="avatar"
+                        style="width: 120px; height: 120px; border: 3px solid var(--accent-color);">
+                </div>
+                <h2 id="myProfileName" style="color: var(--text-primary); margin-bottom: 5px;"></h2>
+                <p id="myProfileUsername" style="color: var(--accent-color); font-weight: 600; margin-bottom: 15px;">
+                </p>
+                <p id="myProfileBio"
+                    style="color: var(--text-secondary); line-height: 1.5; font-size: 14px; margin-bottom: 25px;"></p>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button id="editProfileBtn" class="google-btn"
+                        style="background: var(--bg-glass-hover); color: white;"><i
+                            class="fa-solid fa-pen-to-square"></i> Изменить профиль</button>
+                    <button id="backToChatsBtn" class="google-btn"
+                        style="background: var(--accent-gradient); color: white;"><i class="fa-solid fa-comments"></i>
+                        Назад к чатам</button>
+                </div>
             </div>
         </aside>
 
@@ -133,6 +163,7 @@
 
                 <div class="messages-area" id="messagesArea">
                     <!-- Messages will be injected here -->
+                    <!-- Example structure: <div class="message">... <span class="status-check">✓✓</span></div> -->
                 </div>
 
                 <div class="chat-input-area">
@@ -179,21 +210,89 @@
                 <h3 id="callStatusText" style="font-size: 20px;">Звонок...</h3>
             </div>
             <div
-                style="position: absolute; bottom: 30px; left: 0; right: 0; display: flex; justify-content: center; gap: 20px;">
-                <button id="endCallBtn"
-                    style="width: 60px; height: 60px; border-radius: 50%; border: none; background: #ef4444; color: white; font-size: 24px; cursor: pointer; display: none;"><i
+                style="position: absolute; bottom: 30px; left: 0; right: 0; display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; padding: 0 10px;">
+                <button id="muteBtn" class="call-control-btn" title="Выключить микрофон"><i
+                        class="fa-solid fa-microphone"></i></button>
+                <button id="cameraToggleBtn" class="call-control-btn" title="Выключить камеру"><i
+                        class="fa-solid fa-video"></i></button>
+                <button id="endCallBtn" class="call-control-btn hangup-btn" title="Положить трубку"><i
                         class="fa-solid fa-phone-slash"></i></button>
-                <button id="answerCallBtn"
-                    style="width: 60px; height: 60px; border-radius: 50%; border: none; background: #10b981; color: white; font-size: 24px; cursor: pointer; display: none;"><i
+
+                <button id="answerCallBtn" class="call-control-btn answer-btn"
+                    style="display: none; background: #10b981;" title="Принять вызов"><i
                         class="fa-solid fa-phone"></i></button>
-                <button id="rejectCallBtn"
-                    style="width: 60px; height: 60px; border-radius: 50%; border: none; background: #ef4444; color: white; font-size: 24px; cursor: pointer; display: none;"><i
-                        class="fa-solid fa-xmark"></i></button>
+                <button id="rejectCallBtn" class="call-control-btn hangup-btn" style="display: none;"
+                    title="Сбросить вызов"><i class="fa-solid fa-xmark"></i></button>
             </div>
         </div>
     </div>
 
+    <!-- PWA Install Banner (Optional but good) -->
+    <div id="installBanner"
+        style="display: none; position: fixed; bottom: 20px; left: 20px; right: 20px; background: var(--accent-gradient); padding: 15px; border-radius: 15px; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); justify-content: space-between; align-items: center;">
+        <span style="color: white; font-weight: 600;">Установите TezGram на телефон!</span>
+        <button id="installBtn" class="google-btn"
+            style="width: auto; padding: 8px 15px; font-size: 14px;">Установить</button>
+    </div>
+
+    <!-- Audio Elements for Calls -->
+    <audio id="ringtoneIncoming" loop preload="auto">
+        <source
+            src="https://cdn.pixabay.com/download/audio/2022/01/18/audio_df3bb05391.mp3?filename=classic-phone-ringtone-6262.mp3"
+            type="audio/mpeg">
+    </audio>
+    <audio id="ringtoneOutgoing" loop preload="auto">
+        <source
+            src="https://cdn.pixabay.com/download/audio/2021/11/30/audio_510a7f14b3.mp3?filename=outgoing-call-tone-6262.mp3"
+            type="audio/mpeg">
+    </audio>
+
+    <div id="emojiPicker" class="emoji-picker" style="display: none;">
+        <span onclick="addEmoji('😊')">😊</span><span onclick="addEmoji('😂')">😂</span><span
+            onclick="addEmoji('❤')">❤</span>
+        <span onclick="addEmoji('👍')">👍</span><span onclick="addEmoji('🔥')">🔥</span><span
+            onclick="addEmoji('😭')">😭</span>
+        <span onclick="addEmoji('😎')">😎</span><span onclick="addEmoji('🙌')">🙌</span><span
+            onclick="addEmoji('✨')">✨</span>
+        <span onclick="addEmoji('🚀')">🚀</span><span onclick="addEmoji('🤔')">🤔</span><span
+            onclick="addEmoji('🎉')">🎉</span>
+    </div>
+
     <script type="text/javascript">
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(reg => {
+                    console.log('SW Registered', reg);
+                }).catch(err => {
+                    console.log('SW failed', err);
+                });
+            });
+        }
+
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installBanner').style.display = 'flex';
+        });
+
+        document.getElementById('installBtn').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    document.getElementById('installBanner').style.display = 'none';
+                }
+                deferredPrompt = null;
+            }
+        });
+
+        function addEmoji(emoji) {
+            const input = document.getElementById('messageInput');
+            input.value += emoji;
+            document.getElementById('emojiPicker').style.display = 'none';
+        }
+
         function googleTranslateElementInit() {
             new google.translate.TranslateElement({ pageLanguage: 'ru', autoDisplay: false }, 'google_translate_element');
         }
