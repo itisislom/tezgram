@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tezgram-cache-v4'; // Force update to v4
+const CACHE_NAME = 'tezgram-cache-v7'; // Fixed login issues
 const urlsToCache = [
   '/',
   '/index.html',

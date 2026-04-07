@@ -11,42 +11,104 @@ const firebaseConfig = {
     messagingSenderId: "895242860702",
     appId: "1:895242860702:web:e27468b067af1c5d2fa38f"
 };
-const app = initializeApp(firebaseConfig), auth = getAuth(app), db = getFirestore(app);
 
-// DOM
-const splashScreen = document.getElementById('splashScreen'), loginScreen = document.getElementById('loginScreen'), profileSetupModal = document.getElementById('profileSetupModal'), appScreen = document.getElementById('app');
-const chatList = document.getElementById('chatList'), selfProfileView = document.getElementById('selfProfileView'), chatWindow = document.getElementById('chatWindow');
-const messagesArea = document.getElementById('messagesArea'), messageInput = document.getElementById('messageInput'), sendBtn = document.getElementById('sendBtn'), backBtn = document.getElementById('backBtn'), emojiBtn = document.querySelector('.emoji-btn'), emojiPicker = document.getElementById('emojiPicker');
-const callModal = document.getElementById('callModal'), localVideo = document.getElementById('localVideo'), remoteVideo = document.getElementById('remoteVideo'), callStatusText = document.getElementById('callStatusText'), ringtoneIncoming = document.getElementById('ringtoneIncoming'), ringtoneOutgoing = document.getElementById('ringtoneOutgoing'), muteBtn = document.getElementById('muteBtn'), cameraToggleBtn = document.getElementById('cameraToggleBtn');
-const logoutBtn = document.getElementById('logoutBtn'), callBtn = document.getElementById('callBtn'), videoBtn = document.getElementById('videoBtn'), googleLoginBtn = document.getElementById('googleLoginBtn'), profileViewBtn = document.getElementById('profileViewBtn');
-const backToChatsBtn = document.getElementById('backToChatsBtn'), saveProfileBtn = document.getElementById('saveProfileBtn'), profilePreview = document.getElementById('profilePreview'), profileImageInput = document.getElementById('profileImageInput');
-const usernameInput = document.getElementById('usernameInput'), bioInput = document.getElementById('bioInput'), nameInput = document.getElementById('nameInput');
-const editProfileBtn = document.getElementById('editProfileBtn'), editProfileModal = document.getElementById('editProfileModal'), editProfileCloseBtn = document.getElementById('editProfileCloseBtn');
-const editProfileSaveBtn = document.getElementById('editProfileSaveBtn'), editProfilePreview = document.getElementById('editProfilePreview'), editProfileImageInput = document.getElementById('editProfileImageInput');
-const editUsernameInput = document.getElementById('editUsernameInput'), editBioInput = document.getElementById('editBioInput'), editNameInput = document.getElementById('editNameInput');
+let app, auth, db;
+
+try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    console.log('Firebase initialized successfully');
+} catch (error) {
+    console.error('Firebase initialization error:', error);
+    // Show error to user and hide splash screen
+    setTimeout(() => {
+        const splashScreen = document.getElementById('splashScreen');
+        if (splashScreen) splashScreen.style.display = 'none';
+        const loginScreen = document.getElementById('loginScreen');
+        if (loginScreen) loginScreen.style.display = 'flex';
+    }, 1000);
+}
+
+// DOM - Safe access with null checks
+const splashScreen = document.getElementById('splashScreen');
+const loginScreen = document.getElementById('loginScreen');
+const profileSetupModal = document.getElementById('profileSetupModal');
+const appScreen = document.getElementById('app');
+const chatList = document.getElementById('chatList');
+const selfProfileView = document.getElementById('selfProfileView');
+const chatWindow = document.getElementById('chatWindow');
+const messagesArea = document.getElementById('messagesArea');
+const messageInput = document.getElementById('messageInput');
+const sendBtn = document.getElementById('sendBtn');
+const backBtn = document.getElementById('backBtn');
+const emojiBtn = document.querySelector('.emoji-btn');
+const emojiPicker = document.getElementById('emojiPicker');
+const callModal = document.getElementById('callModal');
+const localVideo = document.getElementById('localVideo');
+const remoteVideo = document.getElementById('remoteVideo');
+const callStatusText = document.getElementById('callStatusText');
+const ringtoneIncoming = document.getElementById('ringtoneIncoming');
+const ringtoneOutgoing = document.getElementById('ringtoneOutgoing');
+const muteBtn = document.getElementById('muteBtn');
+const cameraToggleBtn = document.getElementById('cameraToggleBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const callBtn = document.getElementById('callBtn');
+const videoBtn = document.getElementById('videoBtn');
+const googleLoginBtn = document.getElementById('googleLoginBtn');
+const profileViewBtn = document.getElementById('profileViewBtn');
+const backToChatsBtn = document.getElementById('backToChatsBtn');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+const profilePreview = document.getElementById('profilePreview');
+const profileImageInput = document.getElementById('profileImageInput');
+const usernameInput = document.getElementById('usernameInput');
+const bioInput = document.getElementById('bioInput');
+const nameInput = document.getElementById('nameInput');
+const editProfileBtn = document.getElementById('editProfileBtn');
+const editProfileModal = document.getElementById('editProfileModal');
+const editProfileCloseBtn = document.getElementById('editProfileCloseBtn');
+const editProfileSaveBtn = document.getElementById('editProfileSaveBtn');
+const editProfilePreview = document.getElementById('editProfilePreview');
+const editProfileImageInput = document.getElementById('editProfileImageInput');
+const editUsernameInput = document.getElementById('editUsernameInput');
+const editBioInput = document.getElementById('editBioInput');
+const editNameInput = document.getElementById('editNameInput');
+const searchInput = document.getElementById('searchInput');
+const attachBtn = document.getElementById('attachBtn');
+const imageInput = document.getElementById('imageInput');
+
+// Failsafe: hide splash screen after 8 seconds no matter what
+setTimeout(() => {
+    hideSplashScreen();
+}, 8000);
+
+function hideSplashScreen() {
+    const splash = document.getElementById('splashScreen');
+    if (splash && splash.style.display !== 'none') {
+        splash.style.opacity = '0';
+        setTimeout(() => {
+            splash.style.display = 'none';
+        }, 300);
+    }
+}
 
 // STATE
 const APP_START_TIME = Date.now();
 let currentUser = null, currentUserDoc = null, currentChatUserId = null, currentChatId = null, messagesUnsubscribe = null, activeCallDocId = null, pc = null, localStream = null, callUnsubscribe = null, callListenerUnsubscribe = null, callInProgress = false, isAnswering = false, allUsers = [];
 
 onAuthStateChanged(auth, async (user) => {
-    const hideSplash = () => { if (splashScreen) splashScreen.style.display = 'none'; };
-    if (user) {
-        currentUser = user; 
-        try {
+    try {
+        if (user) {
+            currentUser = user; 
             const uSnap = await getDoc(doc(db, "users", user.uid));
             if (uSnap.exists() && uSnap.data().username) {
                 currentUserDoc = uSnap.data(); 
-                loginScreen.style.display = 'none'; 
-                profileSetupModal.style.display = 'none';
-                appScreen.style.display = 'flex'; 
-                hideSplash();
-                updateStatus(true); 
+                if (loginScreen) loginScreen.style.display = 'none'; 
+                if (profileSetupModal) profileSetupModal.style.display = 'none';
+                if (appScreen) appScreen.style.display = 'flex'; 
                 
-                // Clear any existing status interval
-                if (window.statusInterval) {
-                    clearInterval(window.statusInterval);
-                }
+                updateStatus(true); 
+                if (window.statusInterval) clearInterval(window.statusInterval);
                 window.statusInterval = setInterval(() => updateStatus(true), 30000);
                 
                 try {
@@ -61,25 +123,24 @@ onAuthStateChanged(auth, async (user) => {
                 loadUsersAndChats(); 
                 setTimeout(() => { listenForIncomingCalls(); }, 2000);
             } else { 
-                loginScreen.style.display = 'none'; 
-                profileSetupModal.style.display = 'flex'; 
-                appScreen.style.display = 'none';
-                hideSplash(); 
+                if (loginScreen) loginScreen.style.display = 'none'; 
+                if (profileSetupModal) profileSetupModal.style.display = 'flex'; 
+                if (appScreen) appScreen.style.display = 'none';
             }
-        } catch (e) {
-            console.error("Auth state error:", e);
-            showNotification('Ошибка при загрузке профиля', 'error');
-            hideSplash();
+        } else { 
+            // No user - show login screen
+            if (loginScreen) loginScreen.style.display = 'flex'; 
+            if (appScreen) appScreen.style.display = 'none'; 
+            if (profileSetupModal) profileSetupModal.style.display = 'none';
+            if (messagesUnsubscribe) messagesUnsubscribe(); 
+            if (window.statusInterval) clearInterval(window.statusInterval);
         }
-    } else { 
-        loginScreen.style.display = 'flex'; 
-        appScreen.style.display = 'none'; 
-        profileSetupModal.style.display = 'none';
-        if (messagesUnsubscribe) messagesUnsubscribe(); 
-        if (window.statusInterval) {
-            clearInterval(window.statusInterval);
-        }
-        hideSplash(); 
+    } catch (e) {
+        console.error("Auth state error:", e);
+        if (loginScreen) loginScreen.style.display = 'flex';
+    } finally {
+        hideSplashScreen();
+        initializeLanguage();
     }
 });
 
@@ -172,7 +233,6 @@ function getDefaultAvatar(name) {
 }
 
 // Add search functionality
-const searchInput = document.getElementById('searchInput');
 if (searchInput) {
     searchInput.addEventListener('input', () => renderUserList(allUsers));
 }
@@ -472,23 +532,64 @@ function endCall() {
     callInProgress = false;
     isAnswering = false;
 }
-document.getElementById('endCallBtn').onclick = endCall; document.getElementById('rejectCallBtn').onclick = endCall;
-muteBtn.onclick = () => { if(!localStream) return; const at = localStream.getAudioTracks()[0]; at.enabled = !at.enabled; muteBtn.querySelector('i').className = at.enabled ? 'fa-solid fa-microphone' : 'fa-solid fa-microphone-slash'; };
-cameraToggleBtn.onclick = () => { if(!localStream) return; const vt = localStream.getVideoTracks()[0]; if(vt){ vt.enabled = !vt.enabled; cameraToggleBtn.querySelector('i').className = vt.enabled ? 'fa-solid fa-video' : 'fa-solid fa-video-slash'; } };
-document.getElementById('callBtn').onclick = () => startCall('audio'); document.getElementById('videoBtn').onclick = () => startCall('video');
-document.getElementById('googleLoginBtn').onclick = () => signInWithPopup(auth, new GoogleAuthProvider());
-logoutBtn.onclick = () => signOut(auth);
-document.getElementById('profileViewBtn').onclick = () => { 
-    chatList.style.display = 'none'; 
-    selfProfileView.style.display = 'block'; 
-    const avatarSrc = currentUserDoc.avatar || getDefaultAvatar(currentUserDoc.name);
-    document.getElementById('myProfilePhoto').src = avatarSrc;
-    document.getElementById('myProfilePhoto').onerror = null;
-    document.getElementById('myProfileName').textContent = currentUserDoc.name; 
-    document.getElementById('myProfileUsername').textContent = currentUserDoc.username; 
-    document.getElementById('myProfileBio').textContent = currentUserDoc.bio; 
-};
-document.getElementById('backToChatsBtn').onclick = () => { selfProfileView.style.display = 'none'; chatList.style.display = 'flex'; };
+// Add event listeners with null checks
+if (googleLoginBtn) {
+    googleLoginBtn.onclick = () => {
+        signInWithPopup(auth, new GoogleAuthProvider()).catch(err => {
+            console.error('Login error:', err);
+            showNotification('Login failed: ' + err.message, 'error');
+        });
+    };
+}
+if (logoutBtn) {
+    logoutBtn.onclick = () => signOut(auth);
+}
+if (sendBtn) {
+    sendBtn.onclick = doSendMessage;
+}
+if (messageInput) {
+    messageInput.onkeypress = (e) => { if (e.key === 'Enter') doSendMessage(); };
+}
+if (backBtn) {
+    backBtn.onclick = () => document.body.classList.remove('chat-active');
+}
+if (emojiBtn) {
+    emojiBtn.onclick = () => {
+        if (emojiPicker) {
+            emojiPicker.style.display = emojiPicker.style.display === 'none' ? 'grid' : 'none';
+        }
+    };
+}
+if (attachBtn) {
+    attachBtn.onclick = () => {
+        const imageInput = document.getElementById('imageInput');
+        if (imageInput) imageInput.click();
+    };
+}
+if (profileViewBtn) {
+    profileViewBtn.onclick = () => { 
+        if (chatList) chatList.style.display = 'none'; 
+        if (selfProfileView) selfProfileView.style.display = 'block'; 
+        const avatarSrc = currentUserDoc.avatar || getDefaultAvatar(currentUserDoc.name);
+        const myProfilePhoto = document.getElementById('myProfilePhoto');
+        if (myProfilePhoto) {
+            myProfilePhoto.src = avatarSrc;
+            myProfilePhoto.onerror = null;
+        }
+        const myProfileName = document.getElementById('myProfileName');
+        if (myProfileName) myProfileName.textContent = currentUserDoc.name; 
+        const myProfileUsername = document.getElementById('myProfileUsername');
+        if (myProfileUsername) myProfileUsername.textContent = currentUserDoc.username; 
+        const myProfileBio = document.getElementById('myProfileBio');
+        if (myProfileBio) myProfileBio.textContent = currentUserDoc.bio; 
+    };
+}
+if (backToChatsBtn) {
+    backToChatsBtn.onclick = () => { 
+        if (selfProfileView) selfProfileView.style.display = 'none'; 
+        if (chatList) chatList.style.display = 'flex'; 
+    };
+}
 document.getElementById('editProfileBtn').onclick = () => { 
     document.getElementById('editProfileModal').style.display = 'flex'; 
     document.getElementById('editUsernameInput').value = currentUserDoc.username?.replace('@', '') || ''; 
@@ -518,49 +619,51 @@ document.getElementById('editProfileBtn').onclick = () => {
         console.error('Edit avatar elements not found');
     }
 };
-document.getElementById('saveProfileBtn').onclick = async () => { 
-    const username = "@" + document.getElementById('usernameInput').value.trim();
-    const name = document.getElementById('nameInput').value.trim();
-    const bio = document.getElementById('bioInput').value.trim();
-    
-    if (!username.replace('@', '')) {
-        showNotification('Юзернейм не может быть пустым', 'error');
-        return;
-    }
-    
-    if (!name) {
-        showNotification('Имя не может быть пустым', 'error');
-        return;
-    }
-    
-    try {
-        const q = query(collection(db, "users"), where("username", "==", username));
-        const snapshot = await getDocs(q);
+if (saveProfileBtn) {
+    saveProfileBtn.onclick = async () => { 
+        const username = "@" + (usernameInput ? usernameInput.value.trim() : '');
+        const name = nameInput ? nameInput.value.trim() : '';
+        const bio = bioInput ? bioInput.value.trim() : '';
         
-        if (snapshot.docs.length > 0) {
-            showNotification('Этот юзернейм уже занят. Выберите другой.', 'error');
+        if (!username.replace('@', '')) {
+            showNotification(t('username_empty', 'notifications'), 'error');
             return;
         }
         
-        const avatarSrc = document.getElementById('profilePreview').src || getDefaultAvatar(name);
-        const pr = { 
-            uid: currentUser.uid, 
-            name: name, 
-            username: username, 
-            bio: bio, 
-            avatar: avatarSrc, 
-            isOnline: true 
-        }; 
-        await setDoc(doc(db, "users", currentUser.uid), pr); 
-        currentUserDoc = pr; 
-        profileSetupModal.style.display = 'none'; 
-        appScreen.style.display = 'flex';
-        showNotification('Профиль успешно создан!', 'success');
-    } catch (e) {
-        console.error("Profile setup error:", e);
-        showNotification('Ошибка при сохранении профиля', 'error');
-    }
-};
+        if (!name) {
+            showNotification(t('name_empty', 'notifications'), 'error');
+            return;
+        }
+        
+        try {
+            const q = query(collection(db, "users"), where("username", "==", username));
+            const snapshot = await getDocs(q);
+            
+            if (snapshot.docs.length > 0) {
+                showNotification(t('username_taken', 'notifications'), 'error');
+                return;
+            }
+            
+            const avatarSrc = (profilePreview ? profilePreview.src : '') || getDefaultAvatar(name);
+            const pr = { 
+                uid: currentUser.uid, 
+                name: name, 
+                username: username, 
+                bio: bio, 
+                avatar: avatarSrc, 
+                isOnline: true 
+            }; 
+            await setDoc(doc(db, "users", currentUser.uid), pr); 
+            currentUserDoc = pr; 
+            if (profileSetupModal) profileSetupModal.style.display = 'none'; 
+            if (appScreen) appScreen.style.display = 'flex';
+            showNotification(t('profile_created', 'notifications'), 'success');
+        } catch (e) {
+            console.error("Profile setup error:", e);
+            showNotification(t('profile_error', 'notifications'), 'error');
+        }
+    };
+}
 document.getElementById('profilePreview').onclick = () => document.getElementById('profileImageInput').click();
 document.getElementById('avatarPlaceholder').onclick = () => document.getElementById('profileImageInput').click();
 
@@ -691,44 +794,6 @@ document.getElementById('editProfileImageInput').onchange = (e) => {
     } 
 };
 document.getElementById('editProfileCloseBtn').onclick = () => { document.getElementById('editProfileModal').style.display = 'none'; };
-
-function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 100000;
-        animation: slideIn 0.3s ease-out;
-        max-width: 300px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    `;
-    
-    const colors = {
-        success: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-        error: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-        info: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
-    };
-    
-    notification.style.background = colors[type] || colors.info;
-    notification.textContent = message;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease-out';
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 300);
-    }, 3000);
-}
-
 // Translation system
 const translations = {
     ru: {
@@ -1011,7 +1076,7 @@ function updateAvatarPlaceholders(avatarSrc, type) {
 }
 
 // Initialize language switcher
-document.addEventListener('DOMContentLoaded', () => {
+function initializeLanguage() {
     const langBtn = document.getElementById('langBtn');
     const langDropdown = document.getElementById('langDropdown');
     const currentLangSpan = document.getElementById('currentLang');
@@ -1040,4 +1105,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         updateAllTexts();
     }
-});
+}
+
+// Initialize language system - run immediately for modules
+setTimeout(() => {
+    initializeLanguage();
+}, 100);
