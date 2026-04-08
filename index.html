@@ -140,6 +140,18 @@
                         Назад к чатам</button>
                 </div>
             </div>
+            <div id="otherProfileView" class="chat-list" style="display: none; padding: 24px; text-align: center;">
+                <button id="otherProfileCloseBtn" style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 24px; cursor: pointer;"><i class="fa-solid fa-xmark"></i></button>
+                <div class="avatar-container" style="display: inline-block; margin-bottom: 20px; position: relative;">
+                    <img id="otherProfilePhoto" src="" class="avatar" style="width: 120px; height: 120px; border: 3px solid var(--accent-color);">
+                </div>
+                <h2 id="otherProfileName" style="color: var(--text-primary); margin-bottom: 5px;"></h2>
+                <p id="otherProfileUsername" style="color: var(--accent-color); font-weight: 600; margin-bottom: 15px;"></p>
+                <p id="otherProfileBio" style="color: var(--text-secondary); line-height: 1.5; font-size: 14px; margin-bottom: 25px;"></p>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button id="otherProfileBackBtn" class="google-btn" style="background: var(--accent-gradient); color: white;"><i class="fa-solid fa-comments"></i> Назад к чатам</button>
+                </div>
+            </div>
         </aside>
 
         <!-- Main Area: Chat Window -->

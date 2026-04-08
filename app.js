@@ -52,12 +52,18 @@ const ringtoneIncoming = document.getElementById('ringtoneIncoming');
 const ringtoneOutgoing = document.getElementById('ringtoneOutgoing');
 const muteBtn = document.getElementById('muteBtn');
 const cameraToggleBtn = document.getElementById('cameraToggleBtn');
+const endCallBtn = document.getElementById('endCallBtn');
+const answerCallBtn = document.getElementById('answerCallBtn');
+const rejectCallBtn = document.getElementById('rejectCallBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const callBtn = document.getElementById('callBtn');
 const videoBtn = document.getElementById('videoBtn');
 const googleLoginBtn = document.getElementById('googleLoginBtn');
 const profileViewBtn = document.getElementById('profileViewBtn');
 const backToChatsBtn = document.getElementById('backToChatsBtn');
+const otherProfileView = document.getElementById('otherProfileView');
+const otherProfileCloseBtn = document.getElementById('otherProfileCloseBtn');
+const otherProfileBackBtn = document.getElementById('otherProfileBackBtn');
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 const profilePreview = document.getElementById('profilePreview');
 const profileImageInput = document.getElementById('profileImageInput');
@@ -82,6 +88,28 @@ setTimeout(() => {
     hideSplashScreen();
 }, 8000);
 
+// Extra fallback in case a runtime error prevents app initialization
+window.addEventListener('load', hideSplashScreen);
+window.addEventListener('DOMContentLoaded', hideSplashScreen);
+window.addEventListener('error', () => {
+    hideSplashScreen();
+});
+window.addEventListener('unhandledrejection', () => {
+    hideSplashScreen();
+});
+setTimeout(() => {
+    const splash = document.getElementById('splashScreen');
+    if (splash && splash.style.display !== 'none') {
+        hideSplashScreen();
+    }
+    const app = document.getElementById('app');
+    const login = document.getElementById('loginScreen');
+    const profileSetup = document.getElementById('profileSetupModal');
+    if (app && login && profileSetup && app.style.display === 'none' && login.style.display === 'none' && profileSetup.style.display === 'none') {
+        login.style.display = 'flex';
+    }
+}, 12000);
+
 function hideSplashScreen() {
     const splash = document.getElementById('splashScreen');
     if (splash && splash.style.display !== 'none') {
@@ -94,7 +122,23 @@ function hideSplashScreen() {
 
 // STATE
 const APP_START_TIME = Date.now();
-let currentUser = null, currentUserDoc = null, currentChatUserId = null, currentChatId = null, messagesUnsubscribe = null, activeCallDocId = null, pc = null, localStream = null, callUnsubscribe = null, callListenerUnsubscribe = null, callInProgress = false, isAnswering = false, allUsers = [];
+let currentUser = null,
+    currentUserDoc = null,
+    currentChatUserId = null,
+    currentChatId = null,
+    currentChatUser = null,
+    incomingCallFrom = null,
+    messagesUnsubscribe = null,
+    activeCallDocId = null,
+    pc = null,
+    localStream = null,
+    callUnsubscribe = null,
+    callListenerUnsubscribe = null,
+    callInProgress = false,
+    isAnswering = false,
+    allUsers = [],
+    chatSummaries = {},
+    callStateByUser = {};
 
 onAuthStateChanged(auth, async (user) => {
     try {
@@ -121,6 +165,7 @@ onAuthStateChanged(auth, async (user) => {
                 }
 
                 loadUsersAndChats(); 
+                requestNotificationPermission();
                 setTimeout(() => { listenForIncomingCalls(); }, 2000);
             } else { 
                 if (loginScreen) loginScreen.style.display = 'none'; 
@@ -190,6 +235,7 @@ function loadUsersAndChats() {
                     }
                 }); 
                 renderUserList(allUsers);
+                loadChatSummaries(allUsers);
             } catch (e) {
                 console.error("Error processing users snapshot:", e);
             }
@@ -203,11 +249,17 @@ function loadUsersAndChats() {
     }
 }
 function renderUserList(users) {
+    if (!chatList) return;
     chatList.innerHTML = '';
-    const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
+    const searchTermRaw = searchInput?.value.toLowerCase() || '';
+    const searchTerm = searchTermRaw.replace(/@/g, '').trim();
     
     const filteredUsers = searchTerm ? 
-        users.filter(u => u.name.toLowerCase().includes(searchTerm) || u.username?.toLowerCase().includes(searchTerm)) :
+        users.filter(u => {
+            const normalizedName = u.name?.toLowerCase() || '';
+            const normalizedUsername = (u.username || '').toLowerCase().replace(/@/g, '');
+            return normalizedName.includes(searchTerm) || normalizedUsername.includes(searchTerm);
+        }) :
         users;
     
     if (filteredUsers.length === 0) {
@@ -215,14 +267,36 @@ function renderUserList(users) {
         return;
     }
     
+    const fragment = document.createDocumentFragment();
     filteredUsers.forEach(u => {
-        const div = document.createElement('div'); 
-        div.className = 'chat-item';
+        const callState = callStateByUser[u.uid];
+        const summary = chatSummaries[u.uid] || {};
         const avatarSrc = u.avatar || getDefaultAvatar(u.name);
-        div.innerHTML = `<div class="avatar-container"><img src="${avatarSrc}" class="avatar" onerror="this.src='${getDefaultAvatar(u.name)}'"><div class="status-indicator ${u.isActualOnline ? 'status-online' : 'status-offline'}"></div></div><div class="chat-info"><span class="chat-name">${u.name}</span><p class="chat-preview">${u.bio || ''}</p></div>`;
-        div.onclick = () => openChatWith(u, div); 
-        chatList.appendChild(div);
+        const previewText = callState ? callState.label : (summary.preview || u.bio || '');
+        const timeText = summary.time || '';
+        const badgeHtml = callState ? `<span class="unread-badge">${callState.shortLabel}</span>` : '';
+        const div = document.createElement('div');
+        div.className = 'chat-item';
+        div.innerHTML = `
+            <div class="avatar-container">
+                <img src="${avatarSrc}" class="avatar" onerror="this.src='${getDefaultAvatar(u.name)}'">
+                <div class="status-indicator ${u.isActualOnline ? 'status-online' : 'status-offline'}"></div>
+            </div>
+            <div class="chat-info">
+                <div class="chat-top">
+                    <span class="chat-name">${u.name}</span>
+                    <span class="chat-time">${timeText}</span>
+                </div>
+                <div class="chat-bottom">
+                    <p class="chat-preview">${previewText}</p>
+                    ${badgeHtml}
+                </div>
+            </div>
+        `;
+        div.onclick = () => openChatWith(u, div);
+        fragment.appendChild(div);
     });
+    chatList.appendChild(fragment);
 }
 
 function getDefaultAvatar(name) {
@@ -233,16 +307,78 @@ function getDefaultAvatar(name) {
 }
 
 // Add search functionality
+function debounce(fn, delay = 120) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), delay);
+    };
+}
 if (searchInput) {
-    searchInput.addEventListener('input', () => renderUserList(allUsers));
+    searchInput.addEventListener('input', debounce(() => renderUserList(allUsers)));
+}
+if (callBtn) {
+    callBtn.onclick = () => startCall('audio');
+}
+if (videoBtn) {
+    videoBtn.onclick = () => startCall('video');
+}
+if (endCallBtn) {
+    endCallBtn.onclick = () => endCall();
+}
+if (rejectCallBtn) {
+    rejectCallBtn.onclick = () => endCall();
+}
+if (muteBtn) {
+    muteBtn.onclick = () => {
+        if (!localStream) return;
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (!audioTrack) return;
+        audioTrack.enabled = !audioTrack.enabled;
+        muteBtn.querySelector('i').className = audioTrack.enabled ? 'fa-solid fa-microphone' : 'fa-solid fa-microphone-slash';
+        muteBtn.style.opacity = audioTrack.enabled ? '1' : '0.6';
+    };
+}
+if (cameraToggleBtn) {
+    cameraToggleBtn.onclick = () => {
+        if (!localStream) return;
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (!videoTrack) return;
+        videoTrack.enabled = !videoTrack.enabled;
+        cameraToggleBtn.querySelector('i').className = videoTrack.enabled ? 'fa-solid fa-video' : 'fa-solid fa-video-slash';
+        cameraToggleBtn.style.opacity = videoTrack.enabled ? '1' : '0.6';
+        if (localVideo) localVideo.style.opacity = videoTrack.enabled ? '1' : '0.4';
+    };
+}
+if (answerCallBtn) {
+    answerCallBtn.onclick = () => {
+        showNotification('Нажмите ещё раз, чтобы принять вызов', 'info');
+    };
 }
 function openChatWith(otherUser, node) {
     try {
-        currentChatUserId = otherUser.uid; currentChatId = [currentUser.uid, otherUser.uid].sort().join("_");
+        currentChatUser = otherUser;
+        currentChatUserId = otherUser.uid;
+        currentChatId = [currentUser.uid, otherUser.uid].sort().join("_");
         const avatarSrc = otherUser.avatar || getDefaultAvatar(otherUser.name);
-        document.getElementById('currentAvatar').src = avatarSrc; 
-        document.getElementById('currentName').textContent = otherUser.name;
-        const h = document.getElementById('currentStatus'); h.textContent = otherUser.isActualOnline ? 'онлайн' : 'офлайн'; h.style.color = otherUser.isActualOnline ? 'var(--accent-color)' : 'var(--text-secondary)';
+        const currentAvatar = document.getElementById('currentAvatar');
+        const currentName = document.getElementById('currentName');
+        const currentStatus = document.getElementById('currentStatus');
+
+        if (currentAvatar) {
+            currentAvatar.src = avatarSrc;
+            currentAvatar.style.cursor = 'pointer';
+            currentAvatar.onclick = () => showOtherProfile(currentChatUser);
+        }
+        if (currentName) {
+            currentName.textContent = otherUser.name;
+            currentName.style.cursor = 'pointer';
+            currentName.onclick = () => showOtherProfile(currentChatUser);
+        }
+        if (currentStatus) {
+            currentStatus.textContent = otherUser.isActualOnline ? 'онлайн' : 'офлайн';
+            currentStatus.style.color = otherUser.isActualOnline ? 'var(--accent-color)' : 'var(--text-secondary)';
+        }
         chatWindow.classList.add('has-active'); document.body.classList.add('chat-active');
         messagesArea.innerHTML = ''; 
         if (messagesUnsubscribe) messagesUnsubscribe(); 
@@ -257,6 +393,10 @@ function openChatWith(otherUser, node) {
                         const avatarSrc = otherUser.avatar || getDefaultAvatar(otherUser.name);
                         renderMessage(data, avatarSrc, msgId); 
                         if (data.senderId === otherUser.uid && !data.isRead) updateDoc(change.doc.ref, { isRead: true }); 
+                        if (data.senderId === otherUser.uid && (document.visibilityState !== 'visible' || currentChatUserId !== otherUser.uid)) {
+                            const notifyText = data.type === 'image' ? 'Фото' : (data.text || 'Новое сообщение');
+                            notifyNewMessage(notifyText, otherUser.name);
+                        }
                     }
                     else if (change.type === "modified") updateMessageStatusUI(msgId, data.isRead);
                 }); 
@@ -285,7 +425,9 @@ function renderMessage(data, avatar, id) {
     const statusIcon = data.isRead ? '<i class="fa-solid fa-check-double"></i>' : '<i class="fa-solid fa-check"></i>';
     const statusHtml = isMe ? `<span class="message-status-icon" id="status-${id}">${statusIcon}</span>` : '';
     const avatarHtml = !isMe ? `<img src="${avatar}" class="avatar" style="width:30px;height:30px">` : '';
-    div.innerHTML = `${avatarHtml}<div class="message-content"><div class="msg-text">${data.type === 'image' ? `<img src="${data.text}" style="max-width:100%; border-radius:8px;" alt="image" loading="lazy" crossorigin="anonymous">` : data.text}</div><div class="msg-meta">${statusHtml}</div></div>`;
+    const messageText = data.type === 'image' ? `<img src="${data.text}" style="max-width:100%; border-radius:8px;" alt="image" loading="lazy" crossorigin="anonymous">` : data.text;
+    const timeText = formatTime(data.timestamp);
+    div.innerHTML = `${avatarHtml}<div class="message-content"><div class="msg-text">${messageText}</div><div class="msg-meta"><span class="message-time">${timeText}</span>${statusHtml}</div></div>`;
     messagesArea.appendChild(div);
 }
 function updateMessageStatusUI(id, isRead) { const statusEl = document.getElementById(`status-${id}`); if (statusEl) statusEl.innerHTML = isRead ? '<i class="fa-solid fa-check-double"></i>' : '<i class="fa-solid fa-check"></i>'; }
@@ -380,7 +522,10 @@ document.getElementById('imageInput').onchange = (e) => {
 const startCall = async (type) => {
     if (!currentChatUserId || callInProgress) return;
     callInProgress = true;
-    activeCallDocId = currentChatUserId; callModal.style.display = 'flex'; ringtoneOutgoing.play();
+    activeCallDocId = currentChatUserId;
+    callStateByUser[activeCallDocId] = { label: 'Звонок...', shortLabel: 'Звонок', type };
+    renderUserList(allUsers);
+    callModal.style.display = 'flex'; ringtoneOutgoing.play();
     callStatusText.textContent = `Звонок ${type === 'video' ? 'видео' : 'аудио'}...`;
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video', audio: true });
@@ -429,23 +574,18 @@ function listenForIncomingCalls() {
         callListenerUnsubscribe();
     }
     
-    let isInitial = true;
-    
     callListenerUnsubscribe = onSnapshot(doc(db, "calls", currentUser.uid), async (s) => {
         if (!s.exists()) {
-            isInitial = false;
+            if (incomingCallFrom) {
+                delete callStateByUser[incomingCallFrom];
+                incomingCallFrom = null;
+                renderUserList(allUsers);
+            }
             if ((pc || callModal.style.display === 'flex') && !callInProgress) endCall();
             return;
         }
 
         const data = s.data();
-        
-        if (isInitial) {
-            isInitial = false;
-            console.log("Listen: Ignoring initial stale record", data);
-            deleteDoc(s.ref);
-            return;
-        }
 
         const sentAt = data.sentAt?.toMillis ? data.sentAt.toMillis() : (data.sentAt || 0);
         const now = Date.now();
@@ -458,10 +598,14 @@ function listenForIncomingCalls() {
         if (data.offer && !pc && !isAnswering) {
             isAnswering = true;
             activeCallDocId = currentUser.uid;
+            incomingCallFrom = data.callerId;
+            callStateByUser[data.callerId] = { label: `Входящий звонок`, shortLabel: 'Входящий', type: data.type };
+            renderUserList(allUsers);
             ringtoneIncoming.play(); callModal.style.display = 'flex';
             callStatusText.textContent = `Входящий ${data.type === 'video' ? 'видео' : 'аудио'} вызов от ${data.callerName || 'пользователя'}...`;
             document.getElementById('answerCallBtn').style.display = 'flex'; 
             document.getElementById('rejectCallBtn').style.display = 'flex'; 
+            notifyIncomingCall(data);
             document.getElementById('endCallBtn').style.display = 'none';
             cameraToggleBtn.style.display = 'none'; muteBtn.style.display = 'none';
             
@@ -490,9 +634,12 @@ function listenForIncomingCalls() {
                     const answer = await pc.createAnswer(); 
                     await pc.setLocalDescription(answer);
                     await setDoc(doc(db, "calls", currentUser.uid), { answer }, { merge: true });
-                    
+
+                    const offerCandidateUnsub = onSnapshot(collection(db, "calls", currentUser.uid, "offerCandidates"), s => {
+                        s.docChanges().forEach(c => c.type === 'added' && pc.addIceCandidate(new RTCIceCandidate(c.doc.data())));
+                    });
                     const unsub = onSnapshot(doc(db, "calls", currentUser.uid), s => { if (!s.exists()) endCall(); });
-                    callUnsubscribe = unsub;
+                    callUnsubscribe = () => { offerCandidateUnsub(); unsub(); };
                     callInProgress = true;
                 } catch (e) {
                     console.error("Answer error:", e);
@@ -511,6 +658,125 @@ function listenForIncomingCalls() {
         }
     });
 }
+
+function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+        Notification.requestPermission().catch(err => console.error('Notification permission error:', err));
+    }
+}
+
+function formatTime(timestamp) {
+    if (!timestamp) return '';
+    const date = typeof timestamp.toDate === 'function' ? timestamp.toDate() : new Date(timestamp.seconds ? timestamp.seconds * 1000 : timestamp);
+    const now = new Date();
+    const isSameDay = date.toDateString() === now.toDateString();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    if (isSameDay) return `${hours}:${minutes}`;
+    return `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+async function loadChatSummaries(users) {
+    if (!currentUser || !users.length) return;
+    const promises = users.map(async (u) => {
+        try {
+            const chatId = [currentUser.uid, u.uid].sort().join("_");
+            const q = query(collection(db, "chats", chatId, "messages"), orderBy("timestamp", "desc"), limit(1));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                const data = snap.docs[0].data();
+                const text = data.type === 'image' ? 'Фото' : (data.text || '');
+                chatSummaries[u.uid] = {
+                    preview: text,
+                    time: formatTime(data.timestamp),
+                    timestamp: data.timestamp
+                };
+            } else {
+                delete chatSummaries[u.uid];
+            }
+        } catch (e) {
+            console.error('Chat summary load error for', u.uid, e);
+        }
+    });
+    await Promise.all(promises);
+    renderUserList(allUsers);
+}
+
+function showSystemNotification(title, body, options = {}) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const notificationOptions = {
+        body,
+        icon: '/assets/logo.png',
+        vibrate: [100, 50, 100],
+        renotify: true,
+        tag: options.tag || 'tezgram-notification',
+        ...options
+    };
+
+    try {
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+            navigator.serviceWorker.getRegistration().then(reg => {
+                if (reg && reg.showNotification) {
+                    reg.showNotification(title, notificationOptions);
+                } else {
+                    new Notification(title, notificationOptions);
+                }
+            }).catch(e => {
+                console.error('Service worker notification failed:', e);
+                new Notification(title, notificationOptions);
+            });
+        } else {
+            new Notification(title, notificationOptions);
+        }
+    } catch (e) {
+        console.error('Notification display failed:', e);
+    }
+}
+
+function notifyIncomingCall(data) {
+    const title = 'Входящий вызов';
+    const caller = data.callerName || 'пользователь';
+    const body = `${caller} звонит ${data.type === 'video' ? 'видео' : 'аудио'} вызовом.`;
+    showSystemNotification(title, body, { tag: 'tezgram-call', renotify: true });
+}
+
+function notifyNewMessage(message, senderName) {
+    const title = senderName || 'Новое сообщение';
+    const content = typeof message === 'string' ? message : String(message || 'Новое сообщение');
+    const text = content.length > 80 ? content.slice(0, 77) + '...' : content;
+    showSystemNotification(title, text, { tag: 'tezgram-message', renotify: true });
+}
+
+function showOtherProfile(user) {
+    if (!otherProfileView || !user) return;
+    const photo = document.getElementById('otherProfilePhoto');
+    const name = document.getElementById('otherProfileName');
+    const username = document.getElementById('otherProfileUsername');
+    const bio = document.getElementById('otherProfileBio');
+
+    if (photo) photo.src = user.avatar || getDefaultAvatar(user.name);
+    if (name) name.textContent = user.name || '';
+    if (username) username.textContent = user.username || '';
+    if (bio) bio.textContent = user.bio || '—';
+
+    if (chatList) chatList.style.display = 'none';
+    if (selfProfileView) selfProfileView.style.display = 'none';
+    if (chatWindow) chatWindow.classList.remove('has-active');
+    if (document.body) document.body.classList.remove('chat-active');
+    otherProfileView.style.display = 'block';
+}
+
+function hideOtherProfile() {
+    if (!otherProfileView) return;
+    otherProfileView.style.display = 'none';
+    if (chatList) chatList.style.display = 'flex';
+    if (currentChatUserId && chatWindow) {
+        chatWindow.classList.add('has-active');
+        if (document.body) document.body.classList.add('chat-active');
+    }
+}
+
 function endCall() {
     ringtoneIncoming.pause(); ringtoneOutgoing.pause();
     ringtoneIncoming.currentTime = 0; ringtoneOutgoing.currentTime = 0;
@@ -520,15 +786,20 @@ function endCall() {
     if (callUnsubscribe) { try { callUnsubscribe(); } catch(e){} callUnsubscribe = null; }
     
     // Reset UI for next call
-    document.getElementById('answerCallBtn').style.display = 'none';
-    document.getElementById('rejectCallBtn').style.display = 'none';
-    document.getElementById('endCallBtn').style.display = 'flex';
+    if (answerCallBtn) answerCallBtn.style.display = 'none';
+    if (rejectCallBtn) rejectCallBtn.style.display = 'none';
+    if (endCallBtn) endCallBtn.style.display = 'flex';
     
     if (currentUser && activeCallDocId) { 
         try { deleteDoc(doc(db, "calls", activeCallDocId)); } catch(e){}
+        delete callStateByUser[activeCallDocId];
         activeCallDocId = null; 
     }
-    
+    if (incomingCallFrom) {
+        delete callStateByUser[incomingCallFrom];
+        incomingCallFrom = null;
+    }
+    renderUserList(allUsers);
     callInProgress = false;
     isAnswering = false;
 }
@@ -589,6 +860,12 @@ if (backToChatsBtn) {
         if (selfProfileView) selfProfileView.style.display = 'none'; 
         if (chatList) chatList.style.display = 'flex'; 
     };
+}
+if (otherProfileCloseBtn) {
+    otherProfileCloseBtn.onclick = hideOtherProfile;
+}
+if (otherProfileBackBtn) {
+    otherProfileBackBtn.onclick = hideOtherProfile;
 }
 document.getElementById('editProfileBtn').onclick = () => { 
     document.getElementById('editProfileModal').style.display = 'flex'; 
